@@ -1,0 +1,60 @@
+# =============================================================================
+# QMetry Configuration File Template
+# =============================================================================
+#
+# SETUP INSTRUCTIONS:
+# 1. Copy this file to: .qmetry_config.yaml
+# 2. Fill in your personal API key and project ID
+# 3. Add .qmetry_config.yaml to .gitignore (contains sensitive data)
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# REQUIRED SETTINGS
+# -----------------------------------------------------------------------------
+
+# Your personal QMetry API key
+# Generate at: QMetry > Configuration > Open API
+# NOTE: Keep this secret! Never commit to version control
+QMETRY_API_KEY: "your-api-key-here"
+
+# Your Jira project ID (numeric, NOT the project key)
+# Find it in QMetry URL: project.id=XXXXX
+# Example: 12345 (not "PROJ")
+QMETRY_PROJECT: "YOUR_PROJECT_ID"
+
+# -----------------------------------------------------------------------------
+# OPTIONAL SETTINGS
+# -----------------------------------------------------------------------------
+
+# Default folder for test cases when not specified in feature file
+# Format: /ParentFolder/ChildFolder
+# NOTE: Folder must exist in QMetry (API folder creation may require special permissions)
+QMETRY_DEFAULT_FOLDER: "/Uncategorized"
+
+# SSL certificate verification
+# Set to false if you get SSL certificate errors on macOS
+# Requires: python3 -m pip install certifi
+QMETRY_SSL_VERIFY: true
+
+# -----------------------------------------------------------------------------
+# CUSTOM FIELD MAPPING (OPTIONAL)
+# -----------------------------------------------------------------------------
+# By default, field IDs are auto-discovered on first push and cached.
+# Use this section to override specific field mappings if needed.
+#
+# Format:
+#   CUSTOM_FIELDS:
+#     FieldName: "qcf_xxxxx"
+#
+# Example:
+#   CUSTOM_FIELDS:
+#     Apps: "qcf_12345"
+#     Platform: "qcf_12346"
+#     Component/Feature: "qcf_12347"
+#
+# Leave commented out to use auto-discovery:
+# CUSTOM_FIELDS:
+#   Apps: ""
+#   Platform: ""
+

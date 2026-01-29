@@ -1,0 +1,48 @@
+# QMetry config (contains API keys - each user creates their own)
+.qmetry_config.yaml
+
+# QMetry cache (auto-generated, user-specific)
+.qmetry_cache.yaml
+
+# =============================================================================
+# COMPANY/PROJECT-SPECIFIC FILES - DO NOT COMMIT
+# =============================================================================
+
+# Feature files (may contain internal product names and test cases)
+*.feature
+
+# PDF requirements documents (internal/confidential)
+*.pdf
+
+# Exported CSV files (contain test case data)
+*_Export.csv
+
+# Project-specific folders (internal test cases)
+New Features/
+PullToRefresh/
+
+# =============================================================================
+# PYTHON
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Debug/temp files
+debug_api.py
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
