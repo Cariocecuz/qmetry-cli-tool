@@ -270,7 +270,12 @@ def cmd_folders(args):
             return 1
 
         print(f"Folders in {config.project}:\n")
-        folders = result.data if isinstance(result.data, list) else []
+        # API returns {"total": N, "data": [...]} or just a list
+        folders = result.data
+        if isinstance(folders, dict):
+            folders = folders.get('data', [])
+        elif not isinstance(folders, list):
+            folders = []
 
         def print_folder(folder, indent=0):
             name = folder.get('name', 'Unknown')

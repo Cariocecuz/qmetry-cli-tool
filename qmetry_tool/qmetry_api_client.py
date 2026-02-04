@@ -135,71 +135,102 @@ class QMetryClient:
         data = {"name": name}
         if parent_id:
             data["parentFolderId"] = parent_id
-        
+
         return self._make_request(
             "POST",
             f"/projects/{self.project}/testcase-folders",
             data=data
         )
-    
+
+    def discover_all_folders(self) -> None:
+        """
+        Fetch all folders from QMetry and build a complete path→ID cache.
+        This handles folders with special characters better than search_folder().
+        """
+        result = self.list_folders()
+        if not result.success:
+            print(f"  Warning: Failed to list folders: {result.error}")
+            return
+
+        # API returns {"total": N, "data": [...]} or just a list
+        folders = result.data
+        if isinstance(folders, dict):
+            folders = folders.get('data', [])
+
+        if not folders:
+            return
+
+        # Recursively build path→ID map
+        def process_folder(folder: dict, parent_path: str = "") -> None:
+            name = folder.get('name', '')
+            folder_id = folder.get('id')
+            if not name or not folder_id:
+                return
+
+            current_path = f"{parent_path}/{name}"
+            self.config.folder_cache[current_path] = folder_id
+
+            # Process children recursively
+            for child in folder.get('children', []):
+                process_folder(child, current_path)
+
+        for folder in folders:
+            process_folder(folder)
+
+        # Save updated cache
+        save_cache(self.config)
+
     def get_or_create_folder_path(self, path: str) -> Optional[int]:
         """
         Get folder ID for a path like '/Mobile/PTR', creating folders if needed.
-        
+
         Returns:
             Folder ID or None if failed
         """
         # Check cache first
         if path in self.config.folder_cache:
             return self.config.folder_cache[path]
-        
+
+        # Path not in cache - fetch all folders and rebuild cache
+        self.discover_all_folders()
+
+        # Check cache again after refresh
+        if path in self.config.folder_cache:
+            return self.config.folder_cache[path]
+
+        # Still not found - folder doesn't exist, try to create it
         # Parse path into segments
         segments = [s for s in path.strip('/').split('/') if s]
         if not segments:
             return None
-        
+
         current_parent_id = None
         current_path = ""
-        
+
         for segment in segments:
             current_path += f"/{segment}"
-            
+
             # Check cache for this partial path
             if current_path in self.config.folder_cache:
                 current_parent_id = self.config.folder_cache[current_path]
                 continue
-            
-            # Search for folder
-            result = self.search_folder(segment)
-            
-            folder_id = None
-            if result.success and result.data:
-                # Find matching folder with correct parent
-                # Note: API returns 'parentId' in search results, not 'parentFolderId'
-                folders = result.data if isinstance(result.data, list) else [result.data]
-                for folder in folders:
-                    parent_id = folder.get('parentId') or folder.get('parentFolderId')
-                    if parent_id == current_parent_id:
-                        folder_id = folder.get('id')
-                        break
-            
-            if folder_id is None:
-                # Create the folder
-                create_result = self.create_folder(segment, current_parent_id)
-                if create_result.success and create_result.data:
-                    folder_id = create_result.data.get('id')
-                else:
-                    print(f"\n❌ Failed to create folder: {current_path}")
-                    print(f"   API Error: {create_result.error}")
-                    print(f"\n   This is likely a permissions issue with your API key.")
-                    print(f"   Workaround: Create the folder manually in QMetry, then retry the upload.")
-                    print(f"   Path to create: {path}")
-                    return None
-            
+
+            # Folder doesn't exist - try to create it
+            create_result = self.create_folder(segment, current_parent_id)
+            if create_result.success and create_result.data:
+                folder_id = create_result.data.get('id')
+            else:
+                print(f"\n❌ Failed to create folder: {current_path}")
+                print(f"   API Error: {create_result.error}")
+                print(f"\n   This is likely a permissions issue with your API key.")
+                print(f"   Workaround: Create the folder manually in QMetry, then retry the upload.")
+                print(f"   Path to create: {path}")
+                return None
+
             # Cache and continue
             self.config.folder_cache[current_path] = folder_id
             current_parent_id = folder_id
-        
+
         # Save updated cache
         save_cache(self.config)
 
@@ -274,6 +305,13 @@ class QMetryClient:
 
         # Split values and look up IDs
         value_list = [v.strip() for v in values.split(',')]
+
+        # Check if any value is missing from cache - if so, re-fetch (might be newly added)
+        missing_values = [v for v in value_list if v not in options_map]
+        if missing_values:
+            self.discover_field_ids()
+            options_map = self.config.field_options_cache.get(field_name, {})
+
         option_ids = []
 
         for value in value_list:
