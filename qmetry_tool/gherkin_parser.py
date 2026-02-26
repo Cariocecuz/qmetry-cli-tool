@@ -37,14 +37,9 @@ class FeatureFile:
     feature_labels: List[str] = field(default_factory=list)
 
 
-# Fields that can be overridden via @FieldName:Value syntax
-OVERRIDE_FIELDS = {
-    'Apps', 'Platform', 'Component/Feature', 'Priority', 'Status',
-    'TC_requires_use_of_proxy', 'Regression_Type', 'Automatable?',
-    'CT_Update_Target', 'Evidence_Type', 'Live_Proposition',
-    'Users_Applied', 'Automated_Proposition', 'HighVisibility',
-    'IsAds?', 'NBA_Feature', 'Folder'
-}
+# Reserved tags that should NOT be treated as field overrides
+# These have special meaning in the parser
+RESERVED_TAGS = {'Test_Data', 'Expected_Result', 'Feature_Defaults'}
 
 
 def parse_feature_file(file_path: str) -> FeatureFile:
@@ -86,11 +81,12 @@ def parse_feature_file(file_path: str) -> FeatureFile:
         # End defaults block when we hit Feature: or a tag line for Feature
         if in_defaults_block:
             if stripped.startswith('Feature:') or (stripped.startswith('@') and not stripped.startswith('@Feature_Defaults')):
-                # Check if it's an override field or a regular tag
+                # Check if it's a field override or a reserved/label tag
                 if stripped.startswith('@') and ':' in stripped:
                     # Could be override like @Apps:MyApp or end of defaults
                     tag_name = stripped.split(':')[0][1:]  # Remove @
-                    if tag_name in OVERRIDE_FIELDS or tag_name.replace('_', ' ') in OVERRIDE_FIELDS:
+                    # Any tag with : is a field override, unless it's reserved
+                    if tag_name not in RESERVED_TAGS:
                         # Still in defaults, parse the override
                         key, value = _parse_override_tag(stripped)
                         if key:
@@ -105,9 +101,10 @@ def parse_feature_file(file_path: str) -> FeatureFile:
                         key, value = _parse_override_tag(stripped)
                     else:
                         parts = stripped.split(':', 1)
-                        # Convert underscores to spaces in both field names and values
-                        key = parts[0].strip().replace('_', ' ')
-                        value = parts[1].strip().replace('_', ' ') if len(parts) > 1 else ""
+                        # Keep original format - no underscore conversion
+                        # The API client will handle matching variations
+                        key = parts[0].strip()
+                        value = parts[1].strip() if len(parts) > 1 else ""
                     if key:
                         feature.defaults[key] = value
                 i += 1
@@ -251,7 +248,11 @@ def parse_feature_file(file_path: str) -> FeatureFile:
 
 
 def _parse_override_tag(tag: str) -> tuple:
-    """Parse an override tag like @Platform:iOS and return (key, value)."""
+    """Parse an override tag like @Platform:iOS and return (key, value).
+
+    Keeps original format - no underscore conversion.
+    The API client handles matching field name variations.
+    """
     # Remove @ prefix if present
     if tag.startswith('@'):
         tag = tag[1:]
@@ -263,12 +264,7 @@ def _parse_override_tag(tag: str) -> tuple:
     key = parts[0].strip()
     value = parts[1].strip() if len(parts) > 1 else ""
 
-    # Convert underscores to spaces in both field names and values
-    # e.g., TC_requires_use_of_proxy -> TC requires use of proxy
-    # e.g., New_Features -> New Features
-    key = key.replace('_', ' ')
-    value = value.replace('_', ' ')
-
+    # Keep original format - API client will handle variations
     return (key, value)
 
 

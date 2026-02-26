@@ -3,10 +3,10 @@
 > 📋 **Format Quick Reference:**
 > ```
 > @FieldName:Value     ← Use @ prefix
-> @Regression_Type     ← Use underscores (not spaces)
+> @Regression_Type     ← Use underscores or spaces (both work)
 > @Apps:MyApp          ← No space after colon
 > ```
-> Underscores are auto-converted to spaces when uploading to QMetry.
+> The tool handles underscores/spaces flexibly when matching field names.
 
 ---
 
@@ -57,9 +57,9 @@ gen Onboarding.pdf @Apps:MyApp,ProductB @Platform:iOS,Android
 
 > ⚠️ **IMPORTANT - Generation Format Rules:**
 > - Always use `@` prefix: `@FieldName:Value`
-> - Always use underscores instead of spaces: `@Regression_Type` not `Regression Type`
+> - Underscores and spaces both work: `@Regression_Type` or `@Regression Type`
 > - No space after the colon: `@Apps:MyApp` not `@Apps: MyApp`
-> - Underscores are automatically converted to spaces when uploading to QMetry
+> - The tool matches field names flexibly (underscores ↔ spaces)
 >
 > This format must be consistent across all generated feature files.
 
@@ -79,6 +79,7 @@ After generation, you'll be reminded to review and fill in:
 | `export all` or `exp all` | Convert all feature files in folder to a single CSV |
 | `validate` | Check feature file syntax against this guide |
 | `validate [filename]` | Check specified feature file syntax |
+| `validate [filename] --api` | Validate fields against QMetry (requires API connection) |
 
 **Examples:**
 ```
@@ -87,6 +88,7 @@ export Login.feature
 export all
 validate
 validate Login.feature
+validate Login.feature --api
 ```
 
 **What happens on export:**
@@ -110,6 +112,7 @@ validate Login.feature
 | `upload [file.feature]` or `up [file.feature]` | Upload test cases directly to QMetry via API |
 | `upload [file.feature] to /Folder/Path` | Upload to a specific folder |
 | `upload [file.feature] --dry` | Preview what would be uploaded (no changes) |
+| `upload [file.feature] --skip-validation` | Skip pre-upload field validation (not recommended) |
 | `folders` | List available folders in your QMetry project |
 | `config` | Create config template file |
 
@@ -125,13 +128,24 @@ config
 **What happens on upload:**
 1. Load `.qmetry_config.yaml` for API key and project
 2. Parse feature file (same as export)
-3. Determine target folder (inline > @Feature_Defaults > config default)
-4. For each test case:
+3. **Validate all field names** against QMetry (fail-fast if any invalid)
+4. Determine target folder (inline > @Feature_Defaults > config default)
+5. For each test case:
    - Check if TC with same name exists in target folder
    - If exists: **Update** the existing TC with new content
    - If new: **Create** new TC in target folder
    - Auto-discover custom field IDs (cached after first run)
-5. Report results (created/updated/failed)
+6. Report results (created/updated/failed)
+
+**Pre-upload field validation:**
+```
+Validating fields against QMetry...
+  ✓ Apps
+  ✓ Platform
+  ✗ Platfrom - not found (did you mean 'Platform'?)
+
+✗ Upload aborted. 1 invalid field(s) found.
+```
 
 **Setup required for upload:**
 1. Install dependencies: `python3 -m pip install pyyaml certifi`
@@ -149,9 +163,11 @@ QMETRY_SSL_VERIFY: true  # Set to false if you have certificate issues
 ```
 
 **Safety features:**
+- ✅ **Pre-upload field validation** with typo suggestions
 - ✅ Confirmation prompt before uploading
 - ✅ Smart duplicate handling (updates existing TCs in same folder, creates new ones elsewhere)
 - ✅ Dry run mode (`--dry`) to preview
+- ✅ **Cross-workstream compatible** - works with any QMetry custom fields
 
 > ⚠️ **Note on folder creation:** The API may not have permission to create folders. If you get a "Parent folder ID is not valid" error, create the folder manually in QMetry first, then retry the upload.
 
@@ -232,12 +248,19 @@ Scenario: Login fails with invalid password
 - Use `@FieldName:Value` format (with `@` prefix)
 - No space after colon: `@Platform:iOS` ✓
 - Multiple values use comma: `@Platform:iOS,Android` ✓
-- **Use underscores instead of spaces** - they are automatically converted:
-  - `@Regression_Type:New_Features` → `Regression Type: New Features`
-  - `@TC_requires_use_of_proxy:No` → `TC requires use of proxy: No`
-  - `@Component/Feature:User_Login` → `Component/Feature: User Login`
+- **Underscores and spaces both work** - the tool matches field names flexibly:
+  - `@Regression_Type` or `@Regression Type` → both match "Regression Type"
+  - `@TC_requires_use_of_proxy` → matches "TC requires use of proxy"
+  - Works with any field name format in QMetry
 - Regular tags (no colon) go to Labels column
 - Same format works in BOTH `@Feature_Defaults:` block and inline overrides
+- **Number test cases with `# TC-XX` comments before tags** (not in scenario name):
+  ```gherkin
+  # TC-01
+  @positive
+  Scenario: User logs in successfully
+  ```
+  This makes it easier to reference specific TCs for edits (e.g., "update TC-03 and TC-07")
 
 ---
 
@@ -466,6 +489,9 @@ python3 -m qmetry_tool.cli config
 # Validate feature file syntax
 python3 -m qmetry_tool.cli validate "path/to/file.feature"
 
+# Validate fields against QMetry (requires API connection)
+python3 -m qmetry_tool.cli validate "path/to/file.feature" --api
+
 # Export feature file to CSV
 python3 -m qmetry_tool.cli export "path/to/file.feature"
 
@@ -480,6 +506,9 @@ python3 -m qmetry_tool.cli up "path/to/file.feature" to "/Parent/Child"
 # Preview upload without making changes (dry run)
 python3 -m qmetry_tool.cli up "path/to/file.feature" --dry
 
+# Skip field validation (not recommended)
+python3 -m qmetry_tool.cli up "path/to/file.feature" --skip-validation
+
 # List folders in QMetry project
 python3 -m qmetry_tool.cli folders
 
@@ -492,6 +521,9 @@ python3 -m qmetry_tool.cli --help
 ```bash
 # Validate a feature file
 python3 -m qmetry_tool.cli validate "TestCases/Login.feature"
+
+# Validate fields against QMetry
+python3 -m qmetry_tool.cli validate "TestCases/Login.feature" --api
 
 # Upload to default folder
 python3 -m qmetry_tool.cli up "TestCases/Login.feature"
@@ -508,8 +540,9 @@ python3 -m qmetry_tool.cli up "TestCases/Login.feature" --dry
 | Command | Output |
 |---------|--------|
 | `validate` | Displays parsed test cases and any syntax issues |
+| `validate --api` | Also checks field names against QMetry (with typo suggestions) |
 | `export` | Creates `{filename}_Export.csv` in same directory |
-| `upload` | Creates or updates test cases in QMetry, shows TC keys (e.g., PROJ-TC-12345) |
+| `upload` | Validates fields, then creates or updates test cases in QMetry |
 
 ### Folder Resolution Order
 
@@ -526,3 +559,5 @@ When uploading, the target folder is determined in this order:
 | `SSL certificate error` | Run `python3 -m pip install certifi` or set `QMETRY_SSL_VERIFY: false` in config |
 | `Config file not found` | Run `python3 -m qmetry_tool.cli config` to create template |
 | `API key invalid` | Generate new key from QMetry > Configuration > Open API |
+| `Field not found` | Check field name spelling - tool will suggest correct name if typo |
+| `Upload aborted` | One or more invalid fields; fix names and retry, or use `--skip-validation` |

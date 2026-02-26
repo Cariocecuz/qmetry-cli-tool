@@ -39,14 +39,17 @@ Commands:
     upload <file.feature>                Upload test cases to QMetry
     upload <file.feature> to <folder>    Upload to specific folder
     upload <file.feature> --dry          Preview without uploading
+    upload <file.feature> --skip-validation  Skip field validation (not recommended)
     folders                              List available folders
     validate <file.feature>              Validate feature file syntax
+    validate <file.feature> --api        Validate fields against QMetry
     config                               Create config template
 
 Examples:
     python -m qmetry_tool.cli export "Import Testing/PullToRefresh.feature"
     python -m qmetry_tool.cli upload "Import Testing/PullToRefresh.feature"
     python -m qmetry_tool.cli upload "Import Testing/PullToRefresh.feature" to "/Mobile/PTR"
+    python -m qmetry_tool.cli validate "MyFeature.feature" --api
     python -m qmetry_tool.cli folders
     python -m qmetry_tool.cli config
 """)
@@ -77,22 +80,23 @@ def cmd_export(args):
 
 
 def cmd_validate(args):
-    """Validate feature file syntax."""
+    """Validate feature file syntax and optionally check fields against QMetry."""
     if not args:
         print("Error: Please specify a feature file")
         return 1
-    
+
     file_path = args[0]
-    
+    check_api = '--api' in args
+
     try:
         print(f"Validating: {file_path}")
         feature = parse_feature_file(file_path)
-        
+
         print(f"✓ Feature: {feature.feature_name}")
         print(f"  - {len(feature.background_steps)} background steps")
         print(f"  - {len(feature.test_cases)} test cases")
         print(f"  - Defaults: {list(feature.defaults.keys())}")
-        
+
         for i, tc in enumerate(feature.test_cases, 1):
             print(f"\n  Test Case {i}: {tc.name}")
             print(f"    - Labels: {tc.labels}")
@@ -102,7 +106,55 @@ def cmd_validate(args):
                 print(f"    - Test Data: ✓")
             if tc.expected_result:
                 print(f"    - Expected Result: ✓")
-        
+
+        # If --api flag, validate fields against QMetry
+        if check_api:
+            print("\nChecking fields against QMetry...")
+
+            try:
+                config = load_config()
+                issues = validate_config(config, require_api=True)
+                if issues:
+                    for issue in issues:
+                        print(f"  Config Error: {issue}")
+                    return 1
+
+                client = QMetryClient(config)
+
+                # Collect all field names from defaults + all TC overrides
+                all_fields = set(feature.defaults.keys())
+                for tc in feature.test_cases:
+                    all_fields.update(tc.overrides.keys())
+
+                # Remove non-custom fields
+                all_fields.discard('Folder')
+                all_fields.discard('Status')
+                all_fields.discard('Priority')
+
+                # Check each field
+                invalid_fields = []
+                for field in sorted(all_fields):
+                    field_id = client.get_field_id(field)
+                    if field_id:
+                        print(f"  ✓ {field}")
+                    else:
+                        suggestion = client.find_similar_field(field)
+                        if suggestion:
+                            print(f"  ✗ {field} - not found (did you mean '{suggestion}'?)")
+                        else:
+                            print(f"  ✗ {field} - not found in QMetry")
+                        invalid_fields.append(field)
+
+                if invalid_fields:
+                    print(f"\n✗ Validation failed: {len(invalid_fields)} invalid field(s)")
+                    return 1
+
+                print(f"\n✓ All {len(all_fields)} fields valid in QMetry!")
+
+            except Exception as e:
+                print(f"\n  Error connecting to QMetry: {e}")
+                return 1
+
         print("\n✓ Validation passed!")
         return 0
     except Exception as e:
@@ -110,16 +162,52 @@ def cmd_validate(args):
         return 1
 
 
+def _validate_fields_before_upload(client, feature):
+    """Validate all fields against QMetry before uploading.
+
+    Returns:
+        tuple: (is_valid, invalid_fields_list)
+    """
+    # Collect all field names from defaults + all TC overrides
+    all_fields = set(feature.defaults.keys())
+    for tc in feature.test_cases:
+        all_fields.update(tc.overrides.keys())
+
+    # Remove non-custom fields
+    all_fields.discard('Folder')
+    all_fields.discard('Status')
+    all_fields.discard('Priority')
+
+    # Check each field
+    invalid_fields = []
+    print("\nValidating fields against QMetry...")
+
+    for field in sorted(all_fields):
+        field_id = client.get_field_id(field)
+        if field_id:
+            print(f"  ✓ {field}")
+        else:
+            suggestion = client.find_similar_field(field)
+            if suggestion:
+                print(f"  ✗ {field} - not found (did you mean '{suggestion}'?)")
+            else:
+                print(f"  ✗ {field} - not found in QMetry")
+            invalid_fields.append(field)
+
+    return (len(invalid_fields) == 0, invalid_fields)
+
+
 def cmd_upload(args):
     """Upload test cases to QMetry."""
     if not args:
         print("Error: Please specify a feature file")
         return 1
-    
+
     file_path = args[0]
     target_folder = None
     dry_run = False
-    
+    skip_validation = False
+
     # Parse additional arguments
     i = 1
     while i < len(args):
@@ -132,9 +220,12 @@ def cmd_upload(args):
         elif args[i] == "--dry":
             dry_run = True
             i += 1
+        elif args[i] == "--skip-validation":
+            skip_validation = True
+            i += 1
         else:
             i += 1
-    
+
     try:
         # Load config
         config = load_config()
@@ -143,32 +234,43 @@ def cmd_upload(args):
             for issue in issues:
                 print(f"Config Error: {issue}")
             return 1
-        
+
         # Parse feature file
         print(f"Parsing: {file_path}")
         feature = parse_feature_file(file_path)
         print(f"Found {len(feature.test_cases)} test cases")
-        
+
         # Determine folder
         if not target_folder:
             target_folder = feature.defaults.get('Folder', config.default_folder)
-        
+
+        # Initialize API client
+        client = QMetryClient(config)
+
+        # Validate fields against QMetry before uploading (fail-fast)
+        if not skip_validation:
+            is_valid, invalid_fields = _validate_fields_before_upload(client, feature)
+            if not is_valid:
+                print(f"\n✗ Upload aborted. {len(invalid_fields)} invalid field(s) found.")
+                print("  Fix field names and retry.")
+                print("  Hint: Use '--skip-validation' to bypass this check (not recommended).")
+                print("\nSummary: 0 created (upload cancelled)")
+                return 1
+            print("✓ All fields valid!")
+
         if dry_run:
             print(f"\n[DRY RUN] Would upload to: {config.project}:{target_folder}")
             for tc in feature.test_cases:
                 print(f"  - {tc.name}")
             return 0
-        
+
         # Confirmation prompt
         print(f"\nCreating {len(feature.test_cases)} TCs in {config.project}:{target_folder}")
         response = input("Proceed? (y/N): ").strip().lower()
         if response != 'y':
             print("Cancelled.")
             return 0
-        
-        # Initialize API client
-        client = QMetryClient(config)
-        
+
         # Get or create folder
         folder_id = None
         if target_folder:

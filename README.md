@@ -11,6 +11,9 @@ A Python CLI tool that parses Gherkin feature files and uploads test cases direc
 - ✅ Smart duplicate handling (updates existing TCs in same folder)
 - ✅ Dry run mode to preview uploads
 - ✅ Export to CSV format (for manual import)
+- ✅ **Cross-workstream compatible** - works with any QMetry custom fields (Mobile, Roku, Web, etc.)
+- ✅ **Pre-upload field validation** - catches invalid fields before uploading
+- ✅ **Typo detection** - suggests correct field names for typos
 
 ## Quick Start
 
@@ -55,10 +58,12 @@ python3 -m qmetry_tool.cli upload "path/to/file.feature" --dry
 | Command | Shorthand | Description |
 |---------|-----------|-------------|
 | `validate <file>` | | Check feature file syntax |
+| `validate <file> --api` | | Validate fields against QMetry |
 | `export <file>` | `exp` | Convert feature file to CSV |
 | `upload <file>` | `up` | Upload test cases to QMetry (uses default folder from config) |
 | `upload <file> --folder "/Path"` | | Upload to specific folder |
 | `upload <file> --dry` | | Preview upload (no changes) |
+| `upload <file> --skip-validation` | | Skip field validation (not recommended) |
 | `folders` | | List folders in QMetry project |
 | `config` | | Create config template |
 | `--help` | | Show help |
@@ -80,6 +85,7 @@ Feature: User Login
     Given the app is installed
     And user is on login screen
 
+  # TC-01
   @positive
   Scenario: Successful login
     Given user has valid credentials
@@ -94,6 +100,7 @@ Feature: User Login
     @Expected_Result:
     User is logged in and sees home screen.
 
+  # TC-02
   @negative @Platform:Android
   Scenario: Login fails with wrong password
     Given user has valid account
@@ -114,6 +121,50 @@ Feature: User Login
 | `@Expected_Result:` | Expected result block |
 | `@Folder:/Path` | Target folder in QMetry |
 | `@positive`, `@negative` | Labels (documentation only) |
+
+## Cross-Workstream Support
+
+The tool auto-detects custom fields from QMetry, so it works with **any team's field configuration**:
+
+```gherkin
+# Mobile team
+@Apps:MyApp
+@Platform:iOS,Android
+@Users_Applied:Premium_Tier
+
+# Roku team
+@Apps:MyApp
+@Device:Roku_Ultra
+@Journey:Login_Flow
+
+# Web team
+@Apps:MyApp
+@Platform:Web
+@Browser:Chrome
+```
+
+**Features:**
+- No hardcoded field list - uses whatever fields exist in your QMetry project
+- Handles underscores/spaces flexibly (`TC_requires_use_of_proxy` or `TC requires use of proxy`)
+- Typo detection suggests correct field names
+
+## Field Validation
+
+Before uploading, the tool validates all fields against QMetry:
+
+```bash
+# Validate fields before upload (automatic)
+$ python3 -m qmetry_tool.cli upload MyFeature.feature
+
+Validating fields against QMetry...
+  ✓ Apps
+  ✗ Platfrom - not found (did you mean 'Platform'?)
+
+✗ Upload aborted. 1 invalid field(s) found.
+
+# Validate fields manually
+$ python3 -m qmetry_tool.cli validate MyFeature.feature --api
+```
 
 ## Finding Your Project ID
 

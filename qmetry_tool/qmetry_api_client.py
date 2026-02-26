@@ -282,6 +282,27 @@ class QMetryClient:
 
         return field_map
 
+    def _get_option_value_match(self, options_map: dict, value: str) -> Optional[str]:
+        """Try to find a matching option value with underscore/space variations.
+
+        Returns the option ID if found, None otherwise.
+        """
+        # Try exact match
+        if value in options_map:
+            return options_map[value]
+
+        # Try underscores → spaces
+        space_value = value.replace('_', ' ')
+        if space_value in options_map:
+            return options_map[space_value]
+
+        # Try spaces → underscores
+        underscore_value = value.replace(' ', '_')
+        if underscore_value in options_map:
+            return options_map[underscore_value]
+
+        return None
+
     def get_option_ids(self, field_name: str, values: str) -> list:
         """
         Convert comma-separated option values to their IDs.
@@ -292,12 +313,20 @@ class QMetryClient:
 
         Returns:
             String value - either comma-separated option IDs or the original value for text fields
+
+        Handles underscore/space variations in both field names and option values.
         """
+        # Get the actual field name that matches in cache
+        matched_field_name = self.get_field_name_match(field_name)
+        if not matched_field_name:
+            # Field not found - return original value
+            return values
+
         # Ensure options are cached
-        if field_name not in self.config.field_options_cache:
+        if matched_field_name not in self.config.field_options_cache:
             self.discover_field_ids()
 
-        options_map = self.config.field_options_cache.get(field_name, {})
+        options_map = self.config.field_options_cache.get(matched_field_name, {})
 
         # If no options defined, this might be a text field - return the value as-is
         if not options_map:
@@ -306,16 +335,10 @@ class QMetryClient:
         # Split values and look up IDs
         value_list = [v.strip() for v in values.split(',')]
 
-        # Check if any value is missing from cache - if so, re-fetch (might be newly added)
-        missing_values = [v for v in value_list if v not in options_map]
-        if missing_values:
-            self.discover_field_ids()
-            options_map = self.config.field_options_cache.get(field_name, {})
-
         option_ids = []
 
         for value in value_list:
-            option_id = options_map.get(value)
+            option_id = self._get_option_value_match(options_map, value)
             if option_id:
                 option_ids.append(str(option_id))  # Convert to string
             else:
@@ -325,20 +348,103 @@ class QMetryClient:
         return ','.join(option_ids) if option_ids else values
 
     def get_field_id(self, field_name: str) -> Optional[str]:
-        """Get field ID for a field name, discovering if needed."""
+        """Get field ID for a field name, discovering if needed.
+
+        Tries multiple variations to handle underscore/space differences:
+        1. Exact match
+        2. Underscores converted to spaces
+        3. Spaces converted to underscores
+        """
+        # Ensure cache is populated
+        if not self.config.field_id_cache:
+            self.discover_field_ids()
+
         # Check manual config first
         if field_name in self.config.custom_fields:
             return self.config.custom_fields[field_name]
 
-        # Check cache
+        # Try exact match
         if field_name in self.config.field_id_cache:
             return self.config.field_id_cache[field_name]
 
-        # Discover fields
+        # Try underscores → spaces
+        space_name = field_name.replace('_', ' ')
+        if space_name in self.config.field_id_cache:
+            return self.config.field_id_cache[space_name]
+
+        # Try spaces → underscores
+        underscore_name = field_name.replace(' ', '_')
+        if underscore_name in self.config.field_id_cache:
+            return self.config.field_id_cache[underscore_name]
+
+        return None
+
+    def get_field_name_match(self, field_name: str) -> Optional[str]:
+        """Get the actual QMetry field name that matches the input.
+
+        Returns the matching field name (for cache lookups) or None.
+        """
         if not self.config.field_id_cache:
             self.discover_field_ids()
 
-        return self.config.field_id_cache.get(field_name)
+        # Try exact match
+        if field_name in self.config.field_id_cache:
+            return field_name
+
+        # Try underscores → spaces
+        space_name = field_name.replace('_', ' ')
+        if space_name in self.config.field_id_cache:
+            return space_name
+
+        # Try spaces → underscores
+        underscore_name = field_name.replace(' ', '_')
+        if underscore_name in self.config.field_id_cache:
+            return underscore_name
+
+        return None
+
+    def find_similar_field(self, field_name: str) -> Optional[str]:
+        """Find a similar field name for typo suggestions.
+
+        Uses simple character-based similarity matching.
+        Returns the most similar field name or None.
+        """
+        if not self.config.field_id_cache:
+            self.discover_field_ids()
+
+        field_lower = field_name.lower().replace('_', ' ')
+        best_match = None
+        best_score = 0.0
+
+        for known_field in self.config.field_id_cache.keys():
+            known_lower = known_field.lower()
+
+            # Calculate similarity score (simple character overlap)
+            shorter = min(len(field_lower), len(known_lower))
+            longer = max(len(field_lower), len(known_lower))
+
+            if longer == 0:
+                continue
+
+            # Count matching characters in order
+            matches = 0
+            j = 0
+            for char in field_lower:
+                while j < len(known_lower):
+                    if known_lower[j] == char:
+                        matches += 1
+                        j += 1
+                        break
+                    j += 1
+
+            score = matches / longer
+
+            # Only suggest if reasonably similar (> 60%)
+            if score > 0.6 and score > best_score:
+                best_score = score
+                best_match = known_field
+
+        return best_match
 
     # --- Test Case Management ---
 
