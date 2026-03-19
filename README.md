@@ -4,6 +4,13 @@ A Python CLI tool that parses Gherkin feature files and uploads test cases direc
 
 ## Features
 
+### 🤖 AI-Powered (NEW)
+- ✅ **Augment native skills** - Natural language QMetry integration
+- ✅ **Python library** - Programmatic access (`qmetry_agent_skills`)
+- ✅ **CLI scripts** - Command-line tools in `skills/` directory
+- ✅ **PDF generation** - Generate feature files from requirements PDFs
+
+### 🚀 Core Functionality
 - ✅ Parse Gherkin `.feature` files with custom tags
 - ✅ Upload test cases directly to QMetry (no CSV export needed)
 - ✅ Upload to existing folder paths in QMetry
@@ -14,6 +21,37 @@ A Python CLI tool that parses Gherkin feature files and uploads test cases direc
 - ✅ **Cross-workstream compatible** - works with any QMetry custom fields (Mobile, Roku, Web, etc.)
 - ✅ **Pre-upload field validation** - catches invalid fields before uploading
 - ✅ **Typo detection** - suggests correct field names for typos
+
+## 🤖 NEW: Augment AI Integration
+
+This tool now includes **Augment native skills** for natural language QMetry integration! Use Augment to manage test cases with simple commands.
+
+### Available Skills
+
+- **qmetry-validate** - Validate feature files for syntax and field correctness
+- **qmetry-upload** - Upload test cases to QMetry
+- **qmetry-generate** - Generate feature files from PDF requirements
+- **qmetry-list-folders** - List QMetry folder hierarchy
+- **qmetry-discover-fields** - Discover custom fields and options
+- **qmetry-workflow** - Complete end-to-end workflow (PDF → QMetry)
+
+### Using with Augment
+
+Simply ask Augment in natural language:
+
+```
+"Validate the login feature file"
+"List the QMetry folders"
+"Upload test cases to /Mobile/Authentication"
+"What custom fields are available?"
+"Generate test cases from requirements.pdf"
+```
+
+Skills are automatically loaded from `.augment/skills/` when you open this repository in VS Code with Augment.
+
+📖 **See [AGENT_SKILLS_README.md](AGENT_SKILLS_README.md) for complete documentation**
+
+---
 
 ## Quick Start
 
@@ -221,15 +259,112 @@ $ python3 -m qmetry_tool.cli validate MyFeature.feature --api
 | `HTTP 404` on upload | Check project ID is numeric, not project key |
 | `Parent folder ID is not valid` | Create the folder manually in QMetry first, then retry |
 
+## Python Library
+
+The tool also provides a Python library for programmatic access:
+
+```python
+from qmetry_agent_skills import (
+    validate_qmetry_feature_file,
+    create_qmetry_test_case,
+    generate_feature_file_from_pdf,
+    list_qmetry_folders,
+    discover_qmetry_custom_fields
+)
+
+# Validate a feature file
+result = validate_qmetry_feature_file(
+    feature_file_path="login.feature",
+    check_api=True
+)
+
+# Upload to QMetry
+result = create_qmetry_test_case(
+    feature_file_path="login.feature",
+    target_folder="/Mobile/Authentication"
+)
+
+# List folders
+result = list_qmetry_folders()
+
+# Discover custom fields
+result = discover_qmetry_custom_fields()
+```
+
+All functions return structured JSON responses for easy integration.
+
+📖 **See [AGENT_SKILLS_README.md](AGENT_SKILLS_README.md) for complete API documentation**
+
+---
+
+## CLI Scripts
+
+Command-line scripts are available in the `skills/` directory:
+
+```bash
+# Validate feature file
+python3 skills/qmetry-validate.py "path/to/file.feature"
+
+# Upload to QMetry
+python3 skills/qmetry-upload.py "path/to/file.feature" "/Mobile/Auth"
+
+# List folders
+python3 skills/qmetry-list-folders.py
+
+# Discover fields
+python3 skills/qmetry-discover-fields.py
+
+# Generate from PDF
+python3 skills/qmetry-generate.py "requirements.pdf" --platform "iOS,Android"
+
+# Complete workflow
+python3 skills/qmetry-workflow.py "requirements.pdf" "/Mobile/Auth" --auto-upload
+```
+
+📖 **See [skills/README.md](skills/README.md) for CLI documentation**
+
+---
+
 ## Documentation
 
 See the full guide for detailed information:
+- **[AGENT_SKILLS_README.md](AGENT_SKILLS_README.md)** - Complete agent skills reference
+- **[AGENT_CONVERSATION_EXAMPLES.md](AGENT_CONVERSATION_EXAMPLES.md)** - 9 conversation examples
+- **[AUGMENT_INTEGRATION_GUIDE.md](AUGMENT_INTEGRATION_GUIDE.md)** - Integration instructions
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Quick reference card
+- **[skills/README.md](skills/README.md)** - CLI scripts documentation
 - **[QMetry CSV Import Guide](_QMetry_Templates/QMetry_CSV_Import_Guide.md)** - Complete reference with all fields, examples, and CSV export details
 
 ## Project Structure
 
 ```
-├── qmetry_tool/              # CLI tool source code
+├── .augment/skills/          # Augment native skills (NEW)
+│   ├── qmetry-validate/
+│   ├── qmetry-upload/
+│   ├── qmetry-generate/
+│   ├── qmetry-list-folders/
+│   ├── qmetry-discover-fields/
+│   └── qmetry-workflow/
+├── qmetry_agent_skills/      # Python library (NEW)
+│   ├── __init__.py           # Package exports
+│   ├── skill_validate.py     # Validation skill
+│   ├── skill_upload.py       # Upload skill
+│   ├── skill_generate.py     # Generation skill
+│   ├── skill_query.py        # Query skills (folders, fields)
+│   ├── skill_combined.py     # Combined workflows
+│   ├── core/                 # Shared utilities
+│   │   ├── parser.py         # Enhanced Gherkin parser
+│   │   ├── config.py         # Agent-compatible config
+│   │   └── errors.py         # Structured error handling
+│   └── examples/             # Usage examples
+├── skills/                   # CLI scripts (NEW)
+│   ├── qmetry-validate.py
+│   ├── qmetry-upload.py
+│   ├── qmetry-generate.py
+│   ├── qmetry-list-folders.py
+│   ├── qmetry-discover-fields.py
+│   └── qmetry-workflow.py
+├── qmetry_tool/              # Original CLI tool
 │   ├── __init__.py           # Package marker
 │   ├── cli.py                # Command-line interface
 │   ├── qmetry_api_client.py  # QMetry API client
@@ -237,6 +372,10 @@ See the full guide for detailed information:
 │   ├── gherkin_parser.py     # Feature file parser
 │   └── csv_exporter.py       # CSV export functionality
 ├── _QMetry_Templates/        # Templates and documentation
+├── AGENT_SKILLS_README.md    # Agent skills documentation (NEW)
+├── AGENT_CONVERSATION_EXAMPLES.md  # Conversation examples (NEW)
+├── AUGMENT_INTEGRATION_GUIDE.md    # Integration guide (NEW)
+├── QUICK_REFERENCE.md        # Quick reference (NEW)
 ├── .qmetry_config.yaml       # Your config (git-ignored)
 ├── .qmetry_cache.yaml        # API cache (auto-generated)
 └── README.md                 # This file
