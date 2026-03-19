@@ -20,8 +20,10 @@ A Python CLI tool that parses Gherkin feature files and uploads test cases direc
 ### 1. Install Dependencies
 
 ```bash
-python3 -m pip install pyyaml certifi
+python3 -m pip install pyyaml certifi pdfplumber
 ```
+
+> **Note:** `pdfplumber` is optional - only needed if generating feature files from PDFs.
 
 ### 2. Create Config File
 
@@ -57,6 +59,7 @@ python3 -m qmetry_tool.cli upload "path/to/file.feature" --dry
 
 | Command | Shorthand | Description |
 |---------|-----------|-------------|
+| `gen <pdf>` | `generate` | Generate feature file from PDF (via AI assistant) |
 | `validate <file>` | | Check feature file syntax |
 | `validate <file> --api` | | Validate fields against QMetry |
 | `export <file>` | `exp` | Convert feature file to CSV |
@@ -67,6 +70,39 @@ python3 -m qmetry_tool.cli upload "path/to/file.feature" --dry
 | `folders` | | List folders in QMetry project |
 | `config` | | Create config template |
 | `--help` | | Show help |
+
+## Generating Feature Files
+
+Use your AI assistant (Augment, ChatGPT, etc.) to generate feature files from requirements:
+
+```bash
+gen requirements.pdf
+# or
+generate MyFeature.feature from requirements.pdf
+```
+
+The AI will:
+1. Extract text from the PDF using `pdfplumber`
+2. Generate a Gherkin feature file following project conventions
+3. Save and validate the output
+
+**What the AI generates:**
+- `@Feature_Defaults:` block with Apps, Platform, Component/Feature
+- `# TC-XX` comments before each scenario (for tracking, not uploaded)
+- `@Test_Data:` and `@Expected_Result:` blocks
+- Coverage for: display, interaction, edge cases, feature flags
+
+**Example prompt (if not using Augment):**
+```
+Generate a Gherkin feature file from this PDF.
+Follow these conventions:
+- @Feature_Defaults: block with Apps, Platform, Component/Feature, Regression_Type
+- # TC-XX comments before each scenario
+- @Test_Data: and @Expected_Result: blocks after each scenario
+- Cover: display, interaction, edge cases, feature flags
+```
+
+> **Note:** Requires `pdfplumber` (`python3 -m pip install pdfplumber`)
 
 ## Feature File Format
 
@@ -179,6 +215,7 @@ $ python3 -m qmetry_tool.cli validate MyFeature.feature --api
 |-------|----------|
 | `PyYAML is required` | `python3 -m pip install pyyaml` |
 | `SSL certificate error` | `python3 -m pip install certifi` |
+| `pdfplumber not installed` | `python3 -m pip install pdfplumber` (required for PDF generation) |
 | `Config file not found` | Run `python3 -m qmetry_tool.cli config` |
 | `API key invalid` | Generate new key from QMetry > Configuration > Open API |
 | `HTTP 404` on upload | Check project ID is numeric, not project key |
