@@ -46,3 +46,22 @@ debug_api.py
 *.swp
 *.swo
 
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Virtual Environments
+venv/
+ENV/
+env/
+.venv
+
+# =============================================================================
+# AUGMENT SKILLS
+# =============================================================================
+
+# Symlinks in .augment/skills/ (personal setup, not team-shared)
+# Only SKILL.md files should be committed
+.augment/skills/*/qmetry-*
+!.augment/skills/*/SKILL.md
