@@ -111,36 +111,109 @@ python3 -m qmetry_tool.cli upload "path/to/file.feature" --dry
 
 ## Generating Feature Files
 
-Use your AI assistant (Augment, ChatGPT, etc.) to generate feature files from requirements:
+> **Note:** The `gen` command is an **AI-assisted workflow** — it's processed by your AI assistant (Augment), not by the QMetry CLI directly. The AI uses existing tools (PDF extraction, Confluence API, file saving) to generate feature files.
+
+### From PDF
 
 ```bash
 gen requirements.pdf
 # or
-generate MyFeature.feature from requirements.pdf
+gen New Features/MyFeature/requirements.pdf
 ```
 
 The AI will:
 1. Extract text from the PDF using `pdfplumber`
 2. Generate a Gherkin feature file following project conventions
-3. Save and validate the output
+3. Save to the same folder as the PDF
+4. Validate the output
 
-**What the AI generates:**
+> **Requires:** `python3 -m pip install pdfplumber`
+
+### From Confluence
+
+```bash
+gen https://your-confluence.atlassian.net/wiki/spaces/TEAM/pages/123456/Page+Title
+# or with explicit folder:
+gen https://your-confluence.atlassian.net/wiki/... --folder "New Features/MyFeature"
+```
+
+The AI will:
+1. Fetch the Confluence page content via API
+2. Extract requirements, use cases, and feature flags
+3. Generate a Gherkin feature file
+4. Save to the specified folder (or prompt for location)
+5. Validate the output
+
+### Folder Structure
+
+Store feature files in `New Features/<FeatureName>/`:
+
+```
+New Features/
+├── PullToRefresh/
+│   ├── PullToRefresh.pdf           # PDF source (optional)
+│   └── PullToRefresh.feature       # Generated feature file
+├── ViewAllButton/
+│   └── ViewAllButton.feature       # Generated from Confluence
+└── NewFeatureName/
+    └── NewFeatureName.feature
+```
+
+**Folder naming conventions:**
+- Use **short, descriptive names**: `ViewAllButton`, `PullToRefresh`, `UserLogin`
+- Avoid ticket numbers in folder names: ❌ `PROJ-1234_View_All_Button`
+- Use PascalCase or camelCase: ✅ `ViewAllButton` or `viewAllButton`
+
+### Traceability
+
+Generated files include a source reference comment at the top:
+
+```gherkin
+# Source: https://your-confluence.atlassian.net/wiki/spaces/TEAM/pages/123456
+# Generated: 2026-03-20
+
+@Feature_Defaults:
+@Apps:MyApp
+...
+```
+
+This links the feature file back to its requirements source for traceability.
+
+### When to Fetch Linked Confluence Pages
+
+| Page Content | Action |
+|--------------|--------|
+| Has requirements table + use cases | ✅ Generate directly |
+| References "Analysis" page with details | 🟡 Ask AI to fetch linked page |
+| References Jira tickets for ACs | 🟡 Ask AI to fetch Jira ticket |
+| References Figma for visual specs | ⚪ Optional — for visual validation TCs |
+
+**Prompt examples:**
+```
+"Generate feature file from this Confluence page"
+"Also fetch the linked Analysis page for more details"
+"Check the Jira ticket PROJ-1234 for acceptance criteria"
+```
+
+### What the AI Generates
+
+- `# Source:` comment for traceability (Confluence/PDF URL)
 - `@Feature_Defaults:` block with Apps, Platform, Component/Feature
 - `# TC-XX` comments before each scenario (for tracking, not uploaded)
 - `@Test_Data:` and `@Expected_Result:` blocks
 - Coverage for: display, interaction, edge cases, feature flags
 
-**Example prompt (if not using Augment):**
+### Example Prompt (if not using Augment)
+
 ```
-Generate a Gherkin feature file from this PDF.
+Generate a Gherkin feature file from this Confluence page / PDF.
 Follow these conventions:
+- Add "# Source: <URL>" comment at the top
 - @Feature_Defaults: block with Apps, Platform, Component/Feature, Regression_Type
 - # TC-XX comments before each scenario
 - @Test_Data: and @Expected_Result: blocks after each scenario
 - Cover: display, interaction, edge cases, feature flags
 ```
-
-> **Note:** Requires `pdfplumber` (`python3 -m pip install pdfplumber`)
 
 ## Feature File Format
 
