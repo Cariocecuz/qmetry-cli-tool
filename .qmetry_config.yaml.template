@@ -18,10 +18,9 @@
 # NOTE: Keep this secret! Never commit to version control
 QMETRY_API_KEY: "your-api-key-here"
 
-# Your Jira project ID (numeric, NOT the project key)
+# Your Jira project ID (numeric)
 # Find it in QMetry URL: project.id=XXXXX
-# Example: 12345 (not "PROJ")
-QMETRY_PROJECT: "YOUR_PROJECT_ID"
+QMETRY_PROJECT: "Your-Project-ID-Here"
 
 # -----------------------------------------------------------------------------
 # OPTIONAL SETTINGS
@@ -29,12 +28,10 @@ QMETRY_PROJECT: "YOUR_PROJECT_ID"
 
 # Default folder for test cases when not specified in feature file
 # Format: /ParentFolder/ChildFolder
-# NOTE: Folder must exist in QMetry (API folder creation may require special permissions)
 QMETRY_DEFAULT_FOLDER: "/Uncategorized"
 
-# SSL certificate verification
-# Set to false if you get SSL certificate errors on macOS
-# Requires: python3 -m pip install certifi
+# SSL verification (set to false if you have certificate issues on macOS)
+# Install the required certificates to enable SSL verification (python3 -m pip install pyyaml certifi)
 QMETRY_SSL_VERIFY: true
 
 # -----------------------------------------------------------------------------
@@ -57,4 +54,3 @@ QMETRY_SSL_VERIFY: true
 # CUSTOM_FIELDS:
 #   Apps: ""
 #   Platform: ""
-

@@ -11,6 +11,7 @@ The easiest way is to simply ask Augment (me!) to run the skills:
 - "Validate the ChromecastSender.feature file"
 - "Upload login.feature to /Mobile/Authentication"
 - "Generate test cases from PullToRefresh.pdf"
+- "Generate test cases from https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature+Name"
 
 I'll execute the appropriate skill and show you the results.
 
@@ -58,7 +59,7 @@ If Augment supports `/` commands in your environment, you can use:
 | `qmetry-list-folders` | List QMetry folders | `python3 skills/qmetry-list-folders.py` |
 | `qmetry-validate` | Validate feature file | `python3 skills/qmetry-validate.py login.feature` |
 | `qmetry-upload` | Upload to QMetry | `python3 skills/qmetry-upload.py login.feature "/Mobile/Auth"` |
-| `qmetry-generate` | Generate from PDF | `python3 skills/qmetry-generate.py requirements.pdf` |
+| `qmetry-generate` | Generate from PDF or Confluence URL | `python3 skills/qmetry-generate.py requirements.pdf` |
 | `qmetry-discover-fields` | List custom fields | `python3 skills/qmetry-discover-fields.py` |
 | `qmetry-workflow` | End-to-end workflow | `python3 skills/qmetry-workflow.py req.pdf "/Mobile/Auth"` |
 
@@ -78,10 +79,13 @@ python3 skills/qmetry-validate.py "New Features/CC Sender/ChromecastSender.featu
 python3 skills/qmetry-upload.py "New Features/CC Sender/ChromecastSender.feature" "/5. Playback/5.19. Chromecast - Sender"
 ```
 
-### Workflow 2: Generate and Upload
+### Workflow 2: Generate and Upload (PDF or Confluence)
 ```bash
-# 1. Generate from PDF
+# 1a. Generate from PDF
 python3 skills/qmetry-generate.py "New Features/PullToRefresh/PullToRefresh.pdf" --platform "iOS,Android"
+
+# 1b. Or generate from Confluence URL (requires Confluence connection)
+#     Ask the agent: "Generate test cases from https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature"
 
 # 2. Review the generated file (manual step)
 

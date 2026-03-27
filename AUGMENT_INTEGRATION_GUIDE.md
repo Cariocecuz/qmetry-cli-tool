@@ -114,7 +114,54 @@ Augment should register these skills as available tools:
     }
 }
 
-# Skill 6: End-to-End Workflow
+# Skill 6: Search Test Cases
+{
+    "name": "search_qmetry_test_cases",
+    "description": "Search test cases by text, app, platform, or folder (uses local cache)",
+    "parameters": {
+        "text": {"type": "string", "required": False},
+        "app": {"type": "string", "required": False},
+        "platform": {"type": "string", "required": False},
+        "folder_id": {"type": "integer", "required": False},
+        "limit": {"type": "integer", "default": 50},
+        "refresh": {"type": "boolean", "default": False}
+    },
+    "returns": {
+        "success": "boolean",
+        "test_cases": "array",
+        "total": "integer",
+        "cache_hit": "boolean"
+    }
+}
+
+# Skill 7: Get Single Test Case
+{
+    "name": "get_qmetry_test_case",
+    "description": "Retrieve a single test case by key (e.g. MOB-TC-21153)",
+    "parameters": {
+        "key": {"type": "string", "required": True},
+        "include_steps": {"type": "boolean", "default": True}
+    },
+    "returns": {
+        "success": "boolean",
+        "test_case": "object"
+    }
+}
+
+# Skill 8: Manage Cache
+{
+    "name": "manage_qmetry_cache",
+    "description": "View or clear the local TC search cache",
+    "parameters": {
+        "action": {"type": "string", "enum": ["info", "clear"], "default": "info"}
+    },
+    "returns": {
+        "success": "boolean",
+        "cache": "object"
+    }
+}
+
+# Skill 9: End-to-End Workflow
 {
     "name": "create_test_cases_from_pdf",
     "description": "Complete workflow: PDF → Feature File → QMetry Upload",
@@ -157,6 +204,15 @@ Intent Recognition:
 │
 ├─ "what fields" / "available fields" / "custom fields"
 │  └─> discover_qmetry_custom_fields()
+│
+├─ "find test cases" / "search for" / "look up" / "are there TCs for"
+│  └─> search_qmetry_test_cases()
+│
+├─ "get test case MOB-TC-XXXXX" / "show details for"
+│  └─> get_qmetry_test_case()
+│
+├─ "cache status" / "clear cache"
+│  └─> manage_qmetry_cache()
 │
 └─ "process PDF and upload" / "end-to-end"
    └─> create_test_cases_from_pdf()
@@ -298,10 +354,12 @@ result = create_qmetry_test_case(
 
 ## Performance Considerations
 
-1. **Caching**: Skills cache field IDs and folder structures
-2. **Rate Limiting**: QMetry API may have rate limits
-3. **Batch Operations**: Use combined skills for multiple files
-4. **Timeouts**: Long operations may timeout (increase if needed)
+1. **TC Search Cache**: All test cases are cached locally in `.qmetry_tc_cache.json` (30-min TTL). First search fetches from API (~45–90 s); subsequent searches are < 0.3 s.
+2. **Field Schema Cache**: Field IDs and folder structures are cached in memory per session.
+3. **Force Refresh**: Use `refresh=True` or `--refresh` to bypass the TC cache and fetch fresh data.
+4. **Rate Limiting**: QMetry API may have rate limits.
+5. **Batch Operations**: Use combined skills for multiple files.
+6. **Timeouts**: Long operations may timeout (increase if needed).
 
 ---
 

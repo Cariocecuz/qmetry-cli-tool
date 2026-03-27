@@ -3,9 +3,10 @@ QMetry API Client Module for QMetry CLI Tool
 
 Handles communication with QMetry for Jira (QTM4J) Cloud API.
 - Authentication via API key
-- Test case creation
+- Test case creation and update
 - Folder management
 - Custom field discovery
+- Test case search and retrieval
 """
 
 import json
@@ -671,4 +672,120 @@ class QMetryClient:
                 )
 
         return result
+
+    # --- Search & Retrieval ---
+
+    def search_test_cases(
+        self,
+        filters: Dict[str, Any],
+        fields: Optional[List[str]] = None,
+        start_at: int = 0,
+        max_results: int = 50,
+    ) -> APIResponse:
+        """
+        Search test cases with filters and optional field selection.
+
+        Args:
+            filters: Filter dict (must include projectId, may include
+                     folderId, key, summary, etc.)
+            fields: List of field names to include in response.
+                    Standard: summary, description, precondition, priority,
+                    status, assignee, reporter, estimatedTime, isAutomated,
+                    labels, components, fixVersions, sprint, folder,
+                    created, updated, executed.
+                    Custom: qcf_XXXXXXX IDs.
+            start_at: Pagination offset (default 0)
+            max_results: Page size (default 50)
+
+        Returns:
+            APIResponse with {total, data: [...]}
+        """
+        # Build query params — startAt/maxResults MUST be query params
+        # (the API ignores them when sent in the POST body)
+        params = {
+            "startAt": start_at,
+            "maxResults": max_results,
+        }
+        if fields:
+            params["fields"] = ",".join(fields)
+
+        body = {
+            "filter": filters,
+        }
+
+        return self._make_request("POST", "/testcases/search", data=body, params=params)
+
+    def get_test_case_by_key(
+        self,
+        key: str,
+        fields: Optional[List[str]] = None,
+    ) -> APIResponse:
+        """
+        Retrieve a single test case by its key (e.g. MOB-TC-23519).
+
+        Uses the key filter inside the filter object which returns an
+        exact match (total=1).
+
+        Args:
+            key: Test case key (e.g. 'MOB-TC-23519')
+            fields: Optional list of fields to include
+
+        Returns:
+            APIResponse where data is the single test case dict,
+            or success=False if not found.
+        """
+        filters = {
+            "projectId": int(self.project),
+            "key": key,
+        }
+        result = self.search_test_cases(filters, fields=fields, max_results=1)
+
+        if not result.success:
+            return result
+
+        data_list = result.data.get("data", []) if isinstance(result.data, dict) else []
+        if not data_list:
+            return APIResponse(
+                success=False,
+                error=f"Test case '{key}' not found in project {self.project}",
+                status_code=404,
+            )
+
+        # Return single TC as data
+        return APIResponse(success=True, data=data_list[0], status_code=result.status_code)
+
+    def get_test_steps(
+        self,
+        tc_id: str,
+        version_no: int = 1,
+    ) -> APIResponse:
+        """
+        Retrieve test steps for a specific test case version.
+
+        Args:
+            tc_id: Internal test case ID (e.g. 'p8MjHA27HOL76E')
+            version_no: Version number (default 1)
+
+        Returns:
+            APIResponse with {total, data: [{id, seqNo, stepDetails,
+            testData, expectedResult, ...}]}
+        """
+        return self._make_request(
+            "POST",
+            f"/testcases/{tc_id}/versions/{version_no}/teststeps/search",
+            data={},
+        )
+
+    def get_custom_field_schema(self) -> APIResponse:
+        """
+        Get all custom field definitions for the project including options.
+
+        Returns:
+            APIResponse with list of field definitions:
+            [{id, name, fieldType, options: [{id, value}]}]
+        """
+        return self._make_request(
+            "GET",
+            f"/projects/{self.project}/testcase-custom-fields",
+        )
 

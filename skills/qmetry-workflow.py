@@ -2,12 +2,12 @@
 """
 Augment Skill: Complete QMetry Workflow
 
-Usage: /qmetry-workflow <pdf-path> <target-folder> [--auto-upload] [--apps <value>] [--platform <value>]
+Usage: /qmetry-workflow <source> <target-folder> [--auto-upload] [--apps <value>] [--platform <value>]
 
-Complete workflow: PDF → Feature File → Validation → Upload to QMetry.
+Complete workflow: PDF/Confluence → Feature File → Validation → Upload to QMetry.
 
 Arguments:
-    pdf-path: Path to PDF requirements document
+    source: Path to PDF requirements document or Confluence page URL
     target-folder: Target folder in QMetry (e.g., "/Mobile/Authentication")
     --auto-upload: Upload immediately without review (optional)
     --apps: Apps field value (optional, default: MyApp)
@@ -18,6 +18,9 @@ Examples:
     /qmetry-workflow requirements/login.pdf "/Mobile/Authentication"
     /qmetry-workflow "New Features/PullToRefresh/PullToRefresh.pdf" "/4. Navigation/4.36. Pull to Refresh" --auto-upload
     /qmetry-workflow login.pdf "/Mobile/Auth" --apps "MyApp" --platform "iOS,Android"
+    /qmetry-workflow "https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature" "/2026/FeatureName/Core"
+
+Note: Confluence generation requires the Confluence MCP connection to be configured.
 """
 
 import sys
@@ -30,10 +33,20 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from qmetry_agent_skills import create_test_cases_from_pdf
 
 
+def _is_confluence_url(source: str) -> bool:
+    """Check if the source is a Confluence URL."""
+    return source.startswith("http://") or source.startswith("https://")
+
+
 def main():
     """Execute complete QMetry workflow."""
-    parser = argparse.ArgumentParser(description="Complete QMetry workflow")
-    parser.add_argument("pdf_path", help="Path to PDF requirements document")
+    parser = argparse.ArgumentParser(
+        description="Complete QMetry workflow (PDF or Confluence → Feature → Upload)"
+    )
+    parser.add_argument(
+        "source",
+        help="Path to PDF requirements document or Confluence page URL"
+    )
     parser.add_argument("target_folder", help="Target folder in QMetry")
     parser.add_argument("--auto-upload", action="store_true",
                        help="Upload immediately without review")
@@ -54,9 +67,20 @@ def main():
     if args.component:
         defaults["Component/Feature"] = args.component
     
-    # Execute workflow
+    # Check source type
+    if _is_confluence_url(args.source):
+        print(f"🔗 Confluence URL detected: {args.source}")
+        print(f"📁 Target folder: {args.target_folder}")
+        print(f"\n📝 To run this workflow from a Confluence page,")
+        print(f"   ask the agent directly:")
+        print(f'   "Generate test cases from {args.source} and upload to {args.target_folder}"')
+        print(f"\n   The agent will read the spec via Confluence, generate the")
+        print(f"   .feature file, and upload to QMetry interactively.")
+        return 0
+
+    # Execute workflow with PDF source
     result = create_test_cases_from_pdf(
-        pdf_path=args.pdf_path,
+        pdf_path=args.source,
         target_folder=args.target_folder,
         defaults=defaults,
         auto_upload=args.auto_upload

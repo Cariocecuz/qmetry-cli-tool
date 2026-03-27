@@ -1,7 +1,8 @@
 """
-QMetry Agent Skill: Generate Feature File from PDF
+QMetry Agent Skill: Generate Feature File from PDF or Confluence
 
-Extracts requirements from PDF and generates Gherkin feature files.
+Extracts requirements from PDF documents or Confluence specification pages
+and generates Gherkin feature files.
 """
 
 from typing import Optional, Dict, Any
@@ -78,14 +79,16 @@ def generate_feature_file_from_pdf(
         When user says: "generate test cases from login_spec.pdf"
         When user says: "create feature file from this PDF"
         When user says: "extract test scenarios from requirements.pdf"
-    
+
     Note:
         This skill requires pdfplumber to be installed:
         pip install pdfplumber
-        
+
         The actual test case generation logic should use the agent's LLM
         capabilities to analyze the PDF content and generate appropriate
         Gherkin scenarios.
+
+        For Confluence-based generation, see generate_feature_file_from_confluence().
     """
     try:
         # Validate PDF exists
@@ -297,4 +300,104 @@ Feature: {feature_name}
 """
 
     return template
+
+
+def generate_feature_file_from_confluence(
+    confluence_url: str,
+    output_path: Optional[str] = None,
+    defaults: Optional[Dict[str, str]] = None,
+    save_to_disk: bool = True,
+    feature_name: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Generate a Gherkin feature file from a Confluence specification page.
+
+    This skill leverages the Confluence MCP connection to:
+    1. Read the spec content from the provided Confluence page URL
+    2. Follow linked/child pages for full coverage
+    3. Extract testable requirements, acceptance criteria, and edge cases
+    4. Use the agent's LLM to generate Gherkin scenarios
+    5. Save the .feature file to disk (optional)
+
+    Args:
+        confluence_url: Full URL to the Confluence specification page
+        output_path: Where to save .feature file (auto-generated if None)
+        defaults: Default field values (App, Component/Feature, Regression_Type, etc.)
+        save_to_disk: If True, saves file to disk; if False, returns content only
+        feature_name: Override feature name (extracted from page title if None)
+
+    Returns:
+        {
+            "success": bool,
+            "feature_file_path": str,       # Where file was saved
+            "feature_file_content": str,     # Full content
+            "feature_name": str,
+            "test_case_count": int,
+            "preview": str,                  # First 500 chars
+            "warnings": [str],
+            "confluence_url": str,           # Source URL
+            "source_type": "confluence"
+        }
+
+    Example:
+        result = generate_feature_file_from_confluence(
+            confluence_url="https://confluence.example.com/wiki/spaces/PTC/pages/12345/Feature+Name",
+            defaults={
+                "App": "Peacock,SkyShowtime,NOW/WOW",
+                "Component/Feature": "Feature_Name",
+                "Regression_Type": "New_Feature"
+            },
+            save_to_disk=True
+        )
+
+    Agent Usage:
+        When user says: "Generate test cases from https://confluence.example.com/.../Feature"
+        When user says: "Analyze this Confluence spec and create test cases: [URL]"
+        When user says: "Create a feature file from this spec page: [URL]"
+
+    Note:
+        This skill requires the Confluence MCP connection to be configured.
+        The agent reads the page content via the Confluence API and uses its
+        LLM capabilities to analyze the spec and generate test scenarios.
+
+        Unlike the PDF skill, Confluence generation is handled interactively
+        by the agent — this function serves as a structured entry point and
+        documentation of the capability.
+    """
+    try:
+        # Validate URL format
+        if not confluence_url or not (
+            confluence_url.startswith("http://") or confluence_url.startswith("https://")
+        ):
+            return create_error_response(
+                error_type=ErrorType.VALIDATION_ERROR,
+                error_message=f"Invalid Confluence URL: {confluence_url}",
+                suggestion="Provide a full Confluence page URL (https://...)"
+            )
+
+        # Set defaults
+        if defaults is None:
+            defaults = {}
+
+        # NOTE: The actual Confluence reading and test case generation is
+        # handled by the agent via the Confluence MCP connection.
+        # This function provides the structured interface and validation.
+        return {
+            "success": True,
+            "confluence_url": confluence_url,
+            "source_type": "confluence",
+            "feature_name": feature_name or "Pending — agent will extract from page",
+            "test_case_count": 0,
+            "preview": "Agent will analyze the Confluence page and generate scenarios interactively.",
+            "warnings": [],
+            "defaults_provided": defaults,
+            "message": (
+                "Confluence generation is handled interactively by the agent. "
+                "The agent will read the page, analyze the spec, present the "
+                "proposed test cases for review, and generate the .feature file."
+            )
+        }
+
+    except Exception as e:
+        return handle_exception(e, "generating feature file from Confluence")
 

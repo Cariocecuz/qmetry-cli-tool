@@ -33,6 +33,7 @@ This tool now includes **Augment native skills** for natural language QMetry int
 - **qmetry-generate** - Generate feature files from PDF requirements
 - **qmetry-list-folders** - List QMetry folder hierarchy
 - **qmetry-discover-fields** - Discover custom fields and options
+- **qmetry-search** - Search test cases by text/field filters (cached locally)
 - **qmetry-workflow** - Complete end-to-end workflow (PDF → QMetry)
 
 ### Using with Augment
@@ -105,6 +106,11 @@ python3 -m qmetry_tool.cli upload "path/to/file.feature" --dry
 | `upload <file> --folder "/Path"` | | Upload to specific folder |
 | `upload <file> --dry` | | Preview upload (no changes) |
 | `upload <file> --skip-validation` | | Skip field validation (not recommended) |
+| `search --text "query"` | | Search test cases by text (uses local cache) |
+| `search --text "query" --refresh` | | Search with forced cache refresh from API |
+| `search --app MyApp --platform iOS` | | Filter by custom fields |
+| `cache info` | | Show local TC cache status (size, age, TTL) |
+| `cache clear` | | Delete the local TC cache file |
 | `folders` | | List folders in QMetry project |
 | `config` | | Create config template |
 | `--help` | | Show help |
@@ -417,13 +423,14 @@ See the full guide for detailed information:
 │   ├── qmetry-generate/
 │   ├── qmetry-list-folders/
 │   ├── qmetry-discover-fields/
+│   ├── qmetry-search/        # Search + cache management
 │   └── qmetry-workflow/
 ├── qmetry_agent_skills/      # Python library (NEW)
 │   ├── __init__.py           # Package exports
 │   ├── skill_validate.py     # Validation skill
 │   ├── skill_upload.py       # Upload skill
 │   ├── skill_generate.py     # Generation skill
-│   ├── skill_query.py        # Query skills (folders, fields)
+│   ├── skill_query.py        # Query skills (folders, fields, search)
 │   ├── skill_combined.py     # Combined workflows
 │   ├── core/                 # Shared utilities
 │   │   ├── parser.py         # Enhanced Gherkin parser
@@ -436,12 +443,16 @@ See the full guide for detailed information:
 │   ├── qmetry-generate.py
 │   ├── qmetry-list-folders.py
 │   ├── qmetry-discover-fields.py
+│   ├── qmetry-search.py      # Search test cases
 │   └── qmetry-workflow.py
 ├── qmetry_tool/              # Original CLI tool
 │   ├── __init__.py           # Package marker
 │   ├── cli.py                # Command-line interface
 │   ├── qmetry_api_client.py  # QMetry API client
 │   ├── config_handler.py     # Config and cache management
+│   ├── search_engine.py      # Search engine (query, filter, paginate)
+│   ├── tc_cache.py           # Local TC search cache (30-min TTL)
+│   ├── field_schema.py       # Custom field schema cache
 │   ├── gherkin_parser.py     # Feature file parser
 │   └── csv_exporter.py       # CSV export functionality
 ├── _QMetry_Templates/        # Templates and documentation
@@ -451,5 +462,6 @@ See the full guide for detailed information:
 ├── QUICK_REFERENCE.md        # Quick reference (NEW)
 ├── .qmetry_config.yaml       # Your config (git-ignored)
 ├── .qmetry_cache.yaml        # API cache (auto-generated)
+├── .qmetry_tc_cache.json     # TC search cache (auto-generated, git-ignored)
 └── README.md                 # This file
 ```

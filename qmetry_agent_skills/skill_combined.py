@@ -2,11 +2,12 @@
 QMetry Agent Skill: Combined Workflows
 
 End-to-end workflows combining multiple skills.
+Supports both PDF and Confluence specification sources.
 """
 
 from typing import Optional, Dict, Any
 
-from .skill_generate import generate_feature_file_from_pdf
+from .skill_generate import generate_feature_file_from_pdf, generate_feature_file_from_confluence
 from .skill_validate import validate_qmetry_feature_file
 from .skill_upload import create_qmetry_test_case
 
@@ -94,6 +95,9 @@ def create_test_cases_from_pdf(
         When user says: "create test cases from login_spec.pdf and upload to /Mobile/Authentication"
         When user says: "generate and upload test cases from this PDF"
         When user says: "process requirements.pdf and create test cases in QMetry"
+
+    See also:
+        create_test_cases_from_confluence() for Confluence-based workflows.
     """
     try:
         # Step 1: Generate feature file from PDF
@@ -158,4 +162,82 @@ def create_test_cases_from_pdf(
         
     except Exception as e:
         return handle_exception(e, "creating test cases from PDF")
+
+
+def create_test_cases_from_confluence(
+    confluence_url: str,
+    target_folder: str,
+    defaults: Optional[Dict[str, str]] = None,
+    auto_upload: bool = False,
+    api_key: Optional[str] = None,
+    project_id: Optional[str] = None,
+    save_feature_file: bool = True,
+    skip_validation: bool = False
+) -> Dict[str, Any]:
+    """
+    Complete workflow: Confluence → Feature File → QMetry Upload.
+
+    This skill orchestrates the full workflow from a Confluence spec:
+    1. Read the Confluence page via the MCP connection
+    2. Analyze spec and generate feature file
+    3. Validate the generated content
+    4. Optionally upload to QMetry (if auto_upload=True)
+
+    Args:
+        confluence_url: Full URL to the Confluence specification page
+        target_folder: Target folder in QMetry (e.g., "/2026/FeatureName/Core")
+        defaults: Default field values (App, Component/Feature, etc.)
+        auto_upload: If True, uploads immediately; if False, returns preview
+        api_key: QMetry API key (required if auto_upload=True)
+        project_id: QMetry project ID (required if auto_upload=True)
+        save_feature_file: If True, saves .feature file to disk
+        skip_validation: Skip field validation (not recommended)
+
+    Returns:
+        Same structure as create_test_cases_from_pdf().
+
+    Example:
+        result = create_test_cases_from_confluence(
+            confluence_url="https://confluence.example.com/.../Feature+Name",
+            target_folder="/2026/FeatureName/Core",
+            defaults={"App": "Peacock,SkyShowtime", "Regression_Type": "New_Feature"},
+            auto_upload=False
+        )
+
+    Agent Usage:
+        When user says: "Generate test cases from [Confluence URL] and upload to /folder"
+        When user says: "Create TCs from this Confluence page and push to QMetry"
+
+    Note:
+        The actual Confluence reading and generation is handled interactively
+        by the agent via the Confluence MCP connection. This function provides
+        the structured entry point for the combined workflow.
+    """
+    try:
+        # Step 1: Initialize Confluence generation
+        gen_result = generate_feature_file_from_confluence(
+            confluence_url=confluence_url,
+            defaults=defaults,
+            save_to_disk=save_feature_file
+        )
+
+        if not gen_result["success"]:
+            return gen_result
+
+        # For Confluence, the agent handles the actual generation interactively.
+        # Return the structured result with workflow context.
+        return {
+            **gen_result,
+            "target_folder": target_folder,
+            "auto_upload": auto_upload,
+            "ready_for_upload": False,
+            "next_step": (
+                f"Agent will analyze the Confluence page at {confluence_url}, "
+                f"generate the .feature file, and "
+                f"{'upload to ' + target_folder if auto_upload else 'present for review before uploading to ' + target_folder}."
+            )
+        }
+
+    except Exception as e:
+        return handle_exception(e, "creating test cases from Confluence")
 

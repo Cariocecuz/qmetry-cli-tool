@@ -52,17 +52,21 @@ Upload test cases from a feature file to QMetry.
 ---
 
 ### 4. `/qmetry-generate`
-Generate a Gherkin feature file from a PDF requirements document.
+Generate a Gherkin feature file from a PDF requirements document or Confluence page URL.
 
 ```bash
-/qmetry-generate <pdf-path> [--output <path>] [--apps <value>] [--platform <value>] [--component <value>]
+/qmetry-generate <source> [--output <path>] [--apps <value>] [--platform <value>] [--component <value>]
 ```
 
 **Examples:**
 ```bash
+# From PDF
 /qmetry-generate requirements/login.pdf
 /qmetry-generate "New Features/PullToRefresh/PullToRefresh.pdf" --platform "iOS,Android"
 /qmetry-generate login.pdf --output features/mobile/auth/login.feature --apps "MyApp"
+
+# From Confluence URL (requires Confluence connection)
+/qmetry-generate "https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature+Name"
 ```
 
 **Output:** Generated feature file path and preview
@@ -81,15 +85,15 @@ Discover all custom fields and their options in QMetry.
 ---
 
 ### 6. `/qmetry-workflow`
-Complete workflow: PDF → Feature File → Validation → Upload.
+Complete workflow: PDF/Confluence → Feature File → Validation → Upload.
 
 ```bash
-/qmetry-workflow <pdf-path> <target-folder> [--auto-upload] [--apps <value>] [--platform <value>] [--component <value>]
+/qmetry-workflow <source> <target-folder> [--auto-upload] [--apps <value>] [--platform <value>] [--component <value>]
 ```
 
 **Examples:**
 ```bash
-# With review (default)
+# From PDF with review (default)
 /qmetry-workflow requirements/login.pdf "/Mobile/Authentication"
 
 # Auto-upload (skip review)
@@ -97,6 +101,9 @@ Complete workflow: PDF → Feature File → Validation → Upload.
 
 # With custom fields
 /qmetry-workflow login.pdf "/Mobile/Auth" --apps "MyApp" --platform "iOS,Android" --component "Authentication"
+
+# From Confluence URL (requires Confluence connection)
+/qmetry-workflow "https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature" "/2026/FeatureName/Core"
 ```
 
 **Output:** 
@@ -160,10 +167,13 @@ Augment will execute the Python script for you.
 /qmetry-upload features/mobile/login.feature "/Mobile/Authentication"
 ```
 
-### Workflow 2: Generate → Validate → Upload
+### Workflow 2: Generate → Validate → Upload (PDF or Confluence)
 ```bash
-# 1. Generate from PDF
+# 1a. Generate from PDF
 /qmetry-generate requirements/login.pdf
+
+# 1b. Or generate from Confluence URL
+# /qmetry-generate "https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature+Name"
 
 # 2. Validate
 /qmetry-validate features/mobile/authentication/login.feature

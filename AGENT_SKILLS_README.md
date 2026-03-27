@@ -5,10 +5,12 @@ This document describes the AI agent skills for QMetry Test Management integrati
 ## Overview
 
 The QMetry Agent Skills module provides a set of functions that enable AI agents (like Augment) to:
-- Generate Gherkin feature files from PDF requirements
+- Generate Gherkin feature files from PDF requirements or Confluence specification pages
 - Validate feature files for syntax and field correctness
 - Upload test cases to QMetry via REST API
 - Query QMetry metadata (folders, custom fields)
+- Search existing test cases by text, app, platform, or folder
+- Manage the local TC search cache
 - Orchestrate end-to-end workflows
 
 All skills return structured JSON responses suitable for agent workflows.
@@ -66,6 +68,24 @@ print(result["test_case_count"])    # 8
 - "Generate test cases from login_spec.pdf"
 - "Create feature file from this PDF"
 - "Extract test scenarios from requirements.pdf"
+
+### 1b. Generate from Confluence Specification
+
+When Confluence is connected, the agent can generate Gherkin feature files directly from a Confluence page URL.
+
+**How it works:**
+1. Provide the Confluence page URL
+2. The agent reads the spec content (and follows any linked/child pages for full coverage)
+3. Extracts all testable requirements, acceptance criteria, edge cases, and feature flag behavior
+4. Presents the analysis and proposed test case list for review
+5. Generates the `.feature` file following the project's Gherkin patterns
+
+**Agent Usage:**
+- "Generate test cases from https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature+Name"
+- "Analyze this Confluence spec and create test cases: [URL]"
+- "Create a feature file from this spec page: [URL]"
+
+> **Note:** This capability requires the Confluence MCP connection to be configured. If the connection is available, the agent will use it automatically — no additional setup is needed.
 
 ---
 
@@ -193,7 +213,121 @@ def discover_qmetry_custom_fields(
 
 ---
 
-### 6. `create_test_cases_from_pdf`
+### 6. `search_qmetry_test_cases`
+
+Search test cases across the project using text and custom field filters. Uses a local cache (30-min TTL) for fast repeat searches.
+
+**Function Signature:**
+```python
+def search_qmetry_test_cases(
+    text: Optional[str] = None,
+    app: Optional[str] = None,
+    platform: Optional[str] = None,
+    folder_id: Optional[int] = None,
+    limit: int = 50,
+    refresh: bool = False,
+    api_key: Optional[str] = None,
+    project_id: Optional[str] = None
+) -> Dict[str, Any]
+```
+
+**Example:**
+```python
+from qmetry_agent_skills import search_qmetry_test_cases
+
+# Text search
+result = search_qmetry_test_cases(text="top 10 rail")
+
+# Filter by app and platform
+result = search_qmetry_test_cases(text="login", app="MyApp", platform="iOS")
+
+# Force fresh data from API
+result = search_qmetry_test_cases(text="browse", refresh=True, limit=20)
+
+if result["success"]:
+    for tc in result["test_cases"]:
+        print(f"{tc['key']} - {tc['summary']}")
+```
+
+**Agent Usage:**
+- "Find test cases about login"
+- "Search for top 10 rail test cases"
+- "Show me iOS test cases for MyApp"
+
+**Performance:**
+- First search: ~45–90 seconds (fetches all TCs from API, caches locally)
+- Subsequent searches: < 0.3 seconds (reads from local cache)
+- Cache TTL: 30 minutes (auto-expires)
+- Use `refresh=True` to bypass cache
+
+---
+
+### 7. `get_qmetry_test_case`
+
+Retrieve a single test case by its key, including full detail and test steps.
+
+**Function Signature:**
+```python
+def get_qmetry_test_case(
+    key: str,
+    include_steps: bool = True,
+    api_key: Optional[str] = None,
+    project_id: Optional[str] = None
+) -> Dict[str, Any]
+```
+
+**Example:**
+```python
+from qmetry_agent_skills import get_qmetry_test_case
+
+result = get_qmetry_test_case(key="MOB-TC-21153")
+
+if result["success"]:
+    tc = result["test_case"]
+    print(tc["summary"])
+    print(tc["description"])
+    for step in tc.get("steps", []):
+        print(step)
+```
+
+**Agent Usage:**
+- "Get test case MOB-TC-21153"
+- "Show me details for MOB-TC-21153"
+
+---
+
+### 8. `manage_qmetry_cache`
+
+View or clear the local test case search cache.
+
+**Function Signature:**
+```python
+def manage_qmetry_cache(
+    action: str = "info",
+    api_key: Optional[str] = None,
+    project_id: Optional[str] = None
+) -> Dict[str, Any]
+```
+
+**Example:**
+```python
+from qmetry_agent_skills import manage_qmetry_cache
+
+# Check cache status
+info = manage_qmetry_cache(action="info")
+print(info)  # {"success": True, "cache": {"exists": True, "total_tcs": 4681, ...}}
+
+# Clear cache
+manage_qmetry_cache(action="clear")
+```
+
+**Agent Usage:**
+- "Show cache status"
+- "Clear the TC cache"
+
+---
+
+### 9. `create_test_cases_from_pdf`
 
 End-to-end workflow: PDF → Feature File → QMetry Upload.
 
@@ -232,6 +366,7 @@ result = create_test_cases_from_pdf(
 **Agent Usage:**
 - "Create test cases from login_spec.pdf and upload to /Mobile/Authentication"
 - "Generate and upload test cases from this PDF"
+- "Generate test cases from this Confluence page and upload to /2026/FeatureName: [URL]"
 
 ---
 

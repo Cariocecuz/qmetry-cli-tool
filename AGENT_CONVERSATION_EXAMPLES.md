@@ -374,6 +374,157 @@ When ready, say: "upload chromecast test cases to /Mobile/Chromecast"
 
 ---
 
+## Example 10: Search for Existing Test Cases
+
+**User:** "Are there any test cases about the top 10 rail?"
+
+**Agent Internal Process:**
+1. Calls `search_qmetry_test_cases(text="top 10 rail")`
+2. Returns cached results (or fetches from API on first search)
+
+**Agent Response:**
+```
+✅ Found 5 test case(s) (from cache)
+
+Key              | Summary                                            | Status
+-----------------+----------------------------------------------------+--------
+MOB-TC-21153     | Verify Top 10 Rail displays correctly               | Draft
+MOB-TC-21154     | Verify Top 10 Rail scrolling behavior                | Draft
+MOB-TC-21155     | Verify Top 10 Rail deep link navigation              | Draft
+MOB-TC-21160     | Verify Top 10 Rail with no content available         | Draft
+MOB-TC-21161     | Verify Top 10 Rail refresh on pull-to-refresh        | Draft
+```
+
+---
+
+## Example 11: Get Test Case Details
+
+**User:** "Show me details for MOB-TC-21153"
+
+**Agent Internal Process:**
+1. Calls `get_qmetry_test_case(key="MOB-TC-21153")`
+2. Returns full TC detail including steps
+
+**Agent Response:**
+```
+📋 MOB-TC-21153: Verify Top 10 Rail displays correctly
+
+Status: Draft
+Priority: Medium
+Description: Verify that the Top 10 Rail is displayed on the home screen...
+
+Steps:
+1. Launch the app → Home screen is displayed
+2. Scroll to the Top 10 Rail → Rail is visible with correct title
+3. Verify content tiles are displayed → At least 10 tiles shown
+```
+
+---
+
+## Example 12: Search with Filters
+
+**User:** "Find iOS test cases for MyApp related to login"
+
+**Agent Internal Process:**
+1. Calls `search_qmetry_test_cases(text="login", app="MyApp", platform="iOS")`
+2. Filters results by custom fields
+
+**Agent Response:**
+```
+✅ Found 3 test case(s) matching "login" for MyApp / iOS
+
+Key              | Summary                                            | Status
+-----------------+----------------------------------------------------+--------
+MOB-TC-20100     | Verify successful login with valid credentials      | Approved
+MOB-TC-20101     | Verify login fails with invalid password             | Approved
+MOB-TC-20105     | Verify biometric login on iOS                        | Draft
+```
+
+---
+
+## Example 13: Cache Management
+
+**User:** "The search results seem stale, can you refresh?"
+
+**Agent Internal Process:**
+1. Calls `search_qmetry_test_cases(text="...", refresh=True)`
+2. Bypasses cache, fetches fresh data from API
+
+**Agent Response:**
+```
+🔄 Refreshing cache from QMetry API... (this may take 45-90 seconds)
+
+✅ Cache refreshed! 4,681 test cases loaded.
+Found 5 test case(s) matching your search.
+```
+
+**User:** "Clear the TC cache"
+
+**Agent Internal Process:**
+1. Calls `manage_qmetry_cache(action="clear")`
+
+**Agent Response:**
+```
+✅ Cache cleared. Next search will fetch fresh data from the API.
+```
+
+---
+
+## Example 14: Generate Test Cases from Confluence Specification
+
+**User:** "Generate test cases from https://confluence.example.com/wiki/spaces/PTC/pages/12345/Feature+Name"
+
+**Agent Internal Process:**
+1. Reads the Confluence page content via the Confluence connection
+2. Follows any linked or child pages for full coverage
+3. Extracts testable requirements, acceptance criteria, edge cases, and feature flags
+4. Presents analysis and proposed test case list for review
+5. Generates `.feature` file after user approval
+
+**Agent Response (Step 1 — Analysis):**
+```
+📋 Analysis: Feature Name (Web & Mobile)
+
+Source Spec: Confluence Page — Status: COMPLETE
+
+🎯 Feature Summary
+[Summary of the feature extracted from the spec]
+
+📌 Extracted Testable Requirements
+| Req | Requirement | Scope |
+|-----|------------|-------|
+| 1   | Requirement description | Web, Mobile |
+| 2   | Another requirement | Web, Mobile |
+
+🧪 Proposed Test Cases (17 TCs)
+| TC# | Type | Scenario |
+|-----|------|----------|
+| TC-01 | ✅ Positive | Main flow scenario |
+| TC-02 | ❌ Negative | Edge case scenario |
+...
+
+❓ Clarifying Questions:
+1. Should analytics tracking be in scope?
+2. What Component/Feature name should be used?
+
+Please review and I'll generate the feature file.
+```
+
+**User:** "Create the feature file as is"
+
+**Agent Response (Step 2 — Generation):**
+```
+✅ Feature file created: New Features/FeatureName/FeatureName.feature
+📊 17 TCs across 8 use cases
+
+Ready for your review in VS Code. When ready to upload, say:
+"upload to /2026/FeatureName/Core"
+```
+
+> **Note:** This workflow requires the Confluence MCP connection to be configured.
+
+---
+
 ## Key Agent Behaviors
 
 1. **Proactive Validation**: Always validates before uploading
@@ -382,4 +533,6 @@ When ready, say: "upload chromecast test cases to /Mobile/Chromecast"
 4. **Context Awareness**: Remembers previous operations in conversation
 5. **Flexible Input**: Accepts various phrasings for the same operation
 6. **Progress Feedback**: Shows what's happening during long operations
+7. **Cache Awareness**: Uses cached results when available, explains when refreshing
+8. **Confluence Integration**: Can analyze specs directly from Confluence URLs when the connection is available
 

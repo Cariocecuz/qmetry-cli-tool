@@ -15,7 +15,7 @@ qmetry-cli-tool/
 │   ├── skill_generate.py             # PDF → Feature file generation
 │   ├── skill_validate.py             # Feature file validation
 │   ├── skill_upload.py               # QMetry upload
-│   ├── skill_query.py                # QMetry queries (folders, fields)
+│   ├── skill_query.py                # QMetry queries (folders, fields, search, cache)
 │   ├── skill_combined.py             # End-to-end workflows
 │   ├── core/                         # Shared utilities
 │   │   ├── __init__.py
@@ -24,6 +24,17 @@ qmetry-cli-tool/
 │   │   └── errors.py                 # Structured error handling
 │   └── examples/
 │       └── basic_workflow.py         # Usage examples
+├── qmetry_tool/
+│   ├── search_engine.py              # Search engine (query, filter, paginate)
+│   ├── tc_cache.py                   # Local TC search cache (30-min TTL)
+│   ├── field_schema.py               # Custom field schema cache
+│   └── ...                           # (cli, parser, exporter, etc.)
+├── skills/
+│   ├── qmetry-search.py              # CLI search script
+│   └── ...                           # (validate, upload, etc.)
+├── .augment/skills/
+│   ├── qmetry-search/                # Augment search skill descriptor
+│   └── ...
 ├── AGENT_SKILLS_README.md            # Skill documentation
 ├── AGENT_CONVERSATION_EXAMPLES.md    # Agent interaction examples
 ├── AUGMENT_INTEGRATION_GUIDE.md      # Integration guide for Augment
@@ -62,7 +73,21 @@ qmetry-cli-tool/
 - Returns field options
 - Enables dynamic field usage
 
-### 6. **create_test_cases_from_pdf**
+### 6. **search_qmetry_test_cases**
+- Text search across summary, description, precondition
+- Filter by App, Platform, folder
+- Uses local cache (30-min TTL) for sub-second repeat searches
+- `refresh=True` bypasses cache
+
+### 7. **get_qmetry_test_case**
+- Retrieve single TC by key (e.g. MOB-TC-21153)
+- Returns full detail including steps and custom fields
+
+### 8. **manage_qmetry_cache**
+- `info`: cache status (size, age, TC count, TTL)
+- `clear`: delete local cache file
+
+### 9. **create_test_cases_from_pdf**
 - End-to-end workflow
 - Combines generation + validation + upload
 - Supports auto-upload or review workflow
@@ -70,6 +95,13 @@ qmetry-cli-tool/
 ---
 
 ## Key Features
+
+### ✅ Local TC Search Cache
+- Persistent JSON cache at `.qmetry_tc_cache.json`
+- 30-minute TTL with auto-expiration
+- First search: ~45–90 s (fetches all TCs), subsequent: < 0.3 s
+- `--refresh` flag / `refresh=True` to bypass
+- `cache info` / `cache clear` CLI commands
 
 ### ✅ Agent-Compatible Design
 - All functions return structured JSON
@@ -187,13 +219,16 @@ User → Validate → Upload (if valid)
 ## Agent Integration
 
 ### Skill Registration
-Augment should register 6 skills:
+Augment should register 9 skills:
 1. `generate_feature_file_from_pdf`
 2. `validate_qmetry_feature_file`
 3. `create_qmetry_test_case`
 4. `list_qmetry_folders`
 5. `discover_qmetry_custom_fields`
-6. `create_test_cases_from_pdf`
+6. `search_qmetry_test_cases`
+7. `get_qmetry_test_case`
+8. `manage_qmetry_cache`
+9. `create_test_cases_from_pdf`
 
 ### Intent Recognition
 ```
@@ -202,6 +237,9 @@ Augment should register 6 skills:
 "upload to QMetry" → create_qmetry_test_case()
 "list folders" → list_qmetry_folders()
 "what fields" → discover_qmetry_custom_fields()
+"find test cases" / "search" → search_qmetry_test_cases()
+"get test case MOB-TC-XXXXX" → get_qmetry_test_case()
+"cache status" / "clear cache" → manage_qmetry_cache()
 "process PDF and upload" → create_test_cases_from_pdf()
 ```
 
@@ -266,7 +304,7 @@ Augment should register 6 skills:
 ## Success Criteria
 
 ✅ **Functional**
-- All 6 skills implemented and working
+- All 9 skills implemented and working
 - Structured JSON responses
 - Comprehensive error handling
 
@@ -296,17 +334,15 @@ Augment should register 6 skills:
 1. **PDF Generation**: Currently uses template; needs LLM integration for real scenario extraction
 2. **Rate Limiting**: Not implemented; may need for production
 3. **Batch Operations**: Basic implementation; could be optimized
-4. **Caching**: In-memory only; could add persistent cache for agents
 
 ---
 
 ## Future Enhancements
 
 1. **LLM Integration**: Use agent's LLM for PDF → Gherkin conversion
-2. **Advanced Caching**: Persistent cache with invalidation
-3. **Batch Optimization**: Parallel uploads for large batches
-4. **Additional Skills**: Delete, search, export, etc.
-5. **Metrics**: Track usage, success rates, performance
+2. **Batch Optimization**: Parallel uploads for large batches
+3. **Additional Skills**: Delete, export, etc.
+4. **Metrics**: Track usage, success rates, performance
 
 ---
 

@@ -9,6 +9,9 @@ Usage:
     qmetry folders                          List available folders
     qmetry validate <file.feature>          Validate feature file
     qmetry config                           Create config template
+    qmetry get <TC-KEY>                     Get test case by key
+    qmetry search [--app X] [--platform Y]  Search test cases
+    qmetry list <folder-id>                 List test cases in folder
 """
 
 import sys
@@ -24,6 +27,9 @@ from qmetry_tool.config_handler import (
     load_config, validate_config, create_config_template
 )
 from qmetry_tool.qmetry_api_client import QMetryClient
+from qmetry_tool.field_schema import FieldSchemaCache
+from qmetry_tool.search_engine import QueryEngine
+from qmetry_tool.output_formatter import TableFormatter, DetailFormatter, JSONFormatter
 
 
 def print_usage():
@@ -45,6 +51,19 @@ Commands:
     validate <file.feature> --api        Validate fields against QMetry
     config                               Create config template
 
+  Search & Retrieval:
+    get <TC-KEY>                         Get test case by key (e.g. MOB-TC-23519)
+    get <TC-KEY> --format json           Get test case as JSON
+    get <TC-KEY> --no-steps              Skip fetching test steps
+    search --app Peacock --platform iOS  Search with structured filters
+    search --text "login"                Full-text search (client-side)
+    search "natural language query"      Natural language search
+    search --format json --limit 100     Control output format and result count
+    search --refresh                     Force refresh cache before searching
+    list <folder-id>                     List test cases in folder by ID
+    cache info                           Show cache status (age, size, TC count)
+    cache clear                          Delete the local TC search cache
+
 Examples:
     python -m qmetry_tool.cli export "Import Testing/PullToRefresh.feature"
     python -m qmetry_tool.cli upload "Import Testing/PullToRefresh.feature"
@@ -52,6 +71,11 @@ Examples:
     python -m qmetry_tool.cli validate "MyFeature.feature" --api
     python -m qmetry_tool.cli folders
     python -m qmetry_tool.cli config
+    python -m qmetry_tool.cli get MOB-TC-23519
+    python -m qmetry_tool.cli search --app Peacock --platform iOS
+    python -m qmetry_tool.cli search --text "pull to refresh"
+    python -m qmetry_tool.cli search "Peacock iOS test cases requiring proxy"
+    python -m qmetry_tool.cli list 2232669
 """)
 
 
@@ -389,6 +413,9 @@ def cmd_folders(args):
         for folder in folders:
             print_folder(folder)
 
+        # Cache folder paths for future uploads
+        client.discover_all_folders()
+
         return 0
 
     except Exception as e:
@@ -405,6 +432,265 @@ def cmd_config(args):
     print("  2. Fill in your API key and project")
     print("  3. Add .qmetry_config.yaml to .gitignore")
     return 0
+
+
+def _init_search_engine():
+    """Initialize QMetryClient, FieldSchemaCache, and QueryEngine."""
+    config = load_config()
+    issues = validate_config(config, require_api=True)
+    if issues:
+        for issue in issues:
+            print(f"Config Error: {issue}")
+        return None, None, None
+
+    client = QMetryClient(config)
+    schema = FieldSchemaCache(client)
+    engine = QueryEngine(client, schema, int(config.project))
+    return client, schema, engine
+
+
+def cmd_get(args):
+    """Get a test case by key with full detail."""
+    if not args:
+        print("Error: Please specify a test case key (e.g. MOB-TC-23519)")
+        return 1
+
+    key = args[0]
+    output_format = "detail"
+    include_steps = True
+
+    # Parse flags
+    for i, arg in enumerate(args[1:], 1):
+        if arg == "--format" and i + 1 < len(args):
+            output_format = args[i + 1]
+        elif arg == "--no-steps":
+            include_steps = False
+        elif arg == "json":
+            # Allow: qmetry get KEY --format json
+            pass
+
+    client, schema, engine = _init_search_engine()
+    if engine is None:
+        return 1
+
+    print(f"Looking up {key}...")
+    result = engine.get_by_key(key, include_steps=include_steps)
+
+    if result["error"]:
+        print(f"Error: {result['error']}")
+        return 1
+
+    tc = result["tc"]
+    steps = result["steps"]
+
+    if output_format == "json":
+        output = {"testCase": tc}
+        if steps is not None:
+            output["testSteps"] = steps
+        print(JSONFormatter.format(output))
+    else:
+        custom_display = None
+        cf = tc.get("customFields", {})
+        if cf:
+            custom_display = schema.resolve_custom_field_display(cf)
+        print(DetailFormatter.format(tc, steps=steps, custom_field_display=custom_display))
+
+    return 0
+
+
+def cmd_search(args):
+    """Search test cases with structured filters or natural language."""
+    # Parse flags
+    app = None
+    platform = None
+    text = None
+    folder_id = None
+    output_format = "table"
+    limit = 50
+    refresh = False
+    nl_query_parts = []
+
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--app" and i + 1 < len(args):
+            app = args[i + 1]
+            i += 2
+        elif arg == "--platform" and i + 1 < len(args):
+            platform = args[i + 1]
+            i += 2
+        elif arg == "--text" and i + 1 < len(args):
+            text = args[i + 1]
+            i += 2
+        elif arg == "--folder" and i + 1 < len(args):
+            try:
+                folder_id = int(args[i + 1])
+            except ValueError:
+                print(f"Error: --folder requires a numeric folder ID, got '{args[i + 1]}'")
+                return 1
+            i += 2
+        elif arg == "--format" and i + 1 < len(args):
+            output_format = args[i + 1]
+            i += 2
+        elif arg == "--limit" and i + 1 < len(args):
+            try:
+                limit = int(args[i + 1])
+            except ValueError:
+                print(f"Error: --limit requires a number, got '{args[i + 1]}'")
+                return 1
+            i += 2
+        elif arg == "--refresh":
+            refresh = True
+            i += 1
+        elif not arg.startswith("--"):
+            nl_query_parts.append(arg)
+            i += 1
+        else:
+            print(f"Unknown option: {arg}")
+            i += 1
+
+    # If no structured flags but positional args exist, treat as NL query
+    if nl_query_parts and not any([app, platform, text, folder_id]):
+        nl_query = " ".join(nl_query_parts)
+        # Try NL parsing
+        try:
+            from qmetry_tool.nl_parser import NLParser
+            parsed = NLParser.parse(nl_query)
+            app = parsed.get("app")
+            platform = parsed.get("platform")
+            text = parsed.get("text")
+            if parsed.get("proxy"):
+                # Will be handled as custom field filter in future
+                pass
+            print(f"Parsed query: app={app}, platform={platform}, text={text}")
+        except ImportError:
+            # NL parser not yet available, use as text search
+            text = nl_query
+
+    if not any([app, platform, text, folder_id]):
+        print("Error: Provide search criteria. Examples:")
+        print('  search --app Peacock --platform iOS')
+        print('  search --text "login"')
+        print('  search "Peacock iOS test cases"')
+        return 1
+
+    client, schema, engine = _init_search_engine()
+    if engine is None:
+        return 1
+
+    if refresh:
+        print("Refreshing cache...")
+    else:
+        print("Searching...")
+    result = engine.search(
+        folder_id=folder_id,
+        text=text,
+        app=app,
+        platform=platform,
+        limit=limit,
+        refresh=refresh,
+    )
+
+    if result.get("error"):
+        print(f"Error: {result['error']}")
+        return 1
+
+    data = result["data"]
+    total = result["total"]
+    cache_hit = result.get("cache_hit", False)
+
+    if cache_hit:
+        print("(results from cache — use --refresh to force update)")
+
+    if output_format == "json":
+        print(JSONFormatter.format(result))
+    else:
+        print(TableFormatter.format(data, total=total))
+
+    return 0
+
+
+def cmd_list(args):
+    """List test cases in a folder by folder ID."""
+    if not args:
+        print("Error: Please specify a folder ID")
+        print("  Use 'qmetry folders' to see available folders and their IDs")
+        return 1
+
+    try:
+        folder_id = int(args[0])
+    except ValueError:
+        print(f"Error: Folder ID must be a number, got '{args[0]}'")
+        return 1
+
+    output_format = "table"
+    limit = 50
+
+    for i, arg in enumerate(args[1:], 1):
+        if arg == "--format" and i + 1 < len(args):
+            output_format = args[i + 1]
+        elif arg == "--limit" and i + 1 < len(args):
+            try:
+                limit = int(args[i + 1])
+            except ValueError:
+                pass
+
+    client, schema, engine = _init_search_engine()
+    if engine is None:
+        return 1
+
+    print(f"Listing test cases in folder {folder_id}...")
+    result = engine.list_in_folder(folder_id=folder_id, limit=limit)
+
+    if result.get("error"):
+        print(f"Error: {result['error']}")
+        return 1
+
+    data = result["data"]
+    total = result["total"]
+
+    if output_format == "json":
+        print(JSONFormatter.format(result))
+    else:
+        print(TableFormatter.format(data, total=total))
+
+    return 0
+
+
+def cmd_cache(args):
+    """Manage the local TC search cache."""
+    from qmetry_tool.tc_cache import TCSearchCache
+
+    cache = TCSearchCache()
+    sub = args[0].lower() if args else "info"
+
+    if sub == "info":
+        info = cache.info()
+        if not info.get("exists"):
+            print("No cache file found. Run a search to populate it.")
+        elif info.get("corrupt"):
+            print("Cache file is corrupt. Run 'qmetry cache clear' then search again.")
+        else:
+            valid = "✅ valid" if info["valid"] else "⏰ expired"
+            print(f"Cache: {valid}")
+            print(f"  Path:  {info['path']}")
+            print(f"  TCs:   {info['total_tcs']}")
+            print(f"  Size:  {info['size_mb']} MB ({info['size_bytes']:,} bytes)")
+            print(f"  Age:   {info['age_minutes']} min (TTL: {info['ttl_minutes']} min)")
+        return 0
+
+    elif sub == "clear":
+        if cache.clear():
+            print("Cache cleared.")
+        else:
+            print("No cache file to clear.")
+        return 0
+
+    else:
+        print(f"Unknown cache command: {sub}")
+        print("  cache info   — show cache status")
+        print("  cache clear  — delete the cache file")
+        return 1
 
 
 def main():
@@ -424,6 +710,10 @@ def main():
         'folders': cmd_folders,
         'validate': cmd_validate,
         'config': cmd_config,
+        'get': cmd_get,
+        'search': cmd_search,
+        'list': cmd_list,
+        'cache': cmd_cache,
     }
 
     if command in commands:

@@ -15,7 +15,7 @@ export QMETRY_PROJECT="12345"
 
 ## Skills Cheat Sheet
 
-### 1. Generate Feature File
+### 1a. Generate Feature File from PDF
 ```python
 from qmetry_agent_skills import generate_feature_file_from_pdf
 
@@ -25,6 +25,15 @@ result = generate_feature_file_from_pdf(
 )
 # Returns: {"success": True, "feature_file_path": "...", "test_case_count": 8}
 ```
+
+### 1b. Generate Feature File from Confluence URL
+When Confluence is connected, provide a page URL and the agent will:
+1. Read the spec and any linked/child pages
+2. Extract requirements, acceptance criteria, and edge cases
+3. Present analysis for review
+4. Generate the `.feature` file
+
+**Example prompt:** `"Generate test cases from https://confluence.example.com/wiki/spaces/PROJ/pages/12345/Feature+Name"`
 
 ### 2. Validate Feature File
 ```python
@@ -64,7 +73,37 @@ result = discover_qmetry_custom_fields()
 # Returns: {"success": True, "fields": {...}, "field_count": 15}
 ```
 
-### 6. End-to-End Workflow
+### 6. Search Test Cases
+```python
+from qmetry_agent_skills import search_qmetry_test_cases
+
+result = search_qmetry_test_cases(text="top 10 rail", limit=20)
+# Returns: {"success": True, "test_cases": [...], "total": 5, "cache_hit": True}
+
+# Filter by app/platform
+result = search_qmetry_test_cases(text="login", app="MyApp", platform="iOS")
+
+# Force refresh from API
+result = search_qmetry_test_cases(text="browse", refresh=True)
+```
+
+### 7. Get Single Test Case
+```python
+from qmetry_agent_skills import get_qmetry_test_case
+
+result = get_qmetry_test_case(key="MOB-TC-21153")
+# Returns: {"success": True, "test_case": {"key": "...", "summary": "...", "steps": [...]}}
+```
+
+### 8. Manage Cache
+```python
+from qmetry_agent_skills import manage_qmetry_cache
+
+manage_qmetry_cache(action="info")   # Cache status
+manage_qmetry_cache(action="clear")  # Delete cache
+```
+
+### 9. End-to-End Workflow
 ```python
 from qmetry_agent_skills import create_test_cases_from_pdf
 
@@ -99,6 +138,14 @@ upload = create_qmetry_test_case(
     feature_file_path=gen["feature_file_path"],
     target_folder="/Mobile/Auth"
 )
+```
+
+### Pattern 1b: Confluence Spec → Review → Upload
+```
+# Step 1: Provide Confluence URL → Agent analyzes spec and generates .feature file
+# Step 2: User reviews file in VS Code
+# Step 3: Upload
+upload = create_qmetry_test_case("FeatureName.feature", "/2026/FeatureName/Core")
 ```
 
 ### Pattern 2: Validate Before Upload
@@ -181,8 +228,20 @@ QMETRY_PROJECT: "12345"
 **User:** "What fields can I use?"
 → `discover_qmetry_custom_fields()`
 
+**User:** "Find test cases about login"
+→ `search_qmetry_test_cases(text="login")`
+
+**User:** "Get test case MOB-TC-21153"
+→ `get_qmetry_test_case(key="MOB-TC-21153")`
+
+**User:** "Clear the cache"
+→ `manage_qmetry_cache(action="clear")`
+
 **User:** "Process requirements.pdf and upload to /Mobile/Browse"
 → `create_test_cases_from_pdf("requirements.pdf", "/Mobile/Browse", auto_upload=True)`
+
+**User:** "Generate test cases from this Confluence page: [URL]"
+→ Agent reads spec via Confluence connection → analyzes → generates `.feature` file
 
 ---
 
